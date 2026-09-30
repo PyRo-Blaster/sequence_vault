@@ -31,7 +31,7 @@ sequence_vault/
 └── docs/                         # Design, architecture, decisions, roadmap, operations
 ```
 
-Every reserved directory has a README or Python package marker explaining its purpose. See [architecture and dependency rules](docs/architecture.md), [development phases](docs/roadmap.md), and [contribution guidance](CONTRIBUTING.md).
+Every reserved directory has a README or Python package marker explaining its purpose. See [architecture and dependency rules](docs/architecture.md), [workflow diagrams](docs/workflow.md), the [implementation plan and stack](docs/implementation-plan.md), [development phases](docs/roadmap.md), and [contribution guidance](CONTRIBUTING.md).
 
 ## Check the scaffold
 
