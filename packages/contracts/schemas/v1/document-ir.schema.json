@@ -24,6 +24,29 @@
       "type": "string",
       "minLength": 1
     },
+    "source_encoding": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Decoding applied to source bytes, for example utf-8 or utf-8-sig. raw_text is never Unicode-normalized, so offsets stay valid against the decoded source."
+    },
+    "parse_options": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "User choices that change block content. A different choice is a different parse and a new run.",
+      "properties": {
+        "tracked_changes_view": {
+          "type": "string",
+          "enum": [
+            "not_applicable",
+            "original",
+            "changes_accepted"
+          ]
+        }
+      },
+      "required": [
+        "tracked_changes_view"
+      ]
+    },
     "offset_unit": {
       "const": "unicode_codepoint"
     },
@@ -66,6 +89,14 @@
                   "image_region"
                 ]
               },
+              "line_start": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "line_end": {
+                "type": "integer",
+                "minimum": 1
+              },
               "paragraph_index": {
                 "type": "integer",
                 "minimum": 0
@@ -105,6 +136,97 @@
             },
             "required": [
               "kind"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "text"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "line_start",
+                    "line_end"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "docx_paragraph"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "paragraph_index"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "docx_table_cell"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "table_index",
+                    "row",
+                    "column"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "spreadsheet_cell"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "worksheet",
+                    "cell"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "pdf_region"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "page",
+                    "bbox"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "image_region"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "bbox"
+                  ]
+                }
+              }
             ]
           },
           "extraction_method": {
@@ -126,31 +248,7 @@
       }
     },
     "coverage": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "unresolved_blocks": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "warnings": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      },
-      "required": [
-        "unresolved_blocks",
-        "truncated"
-      ]
+      "$ref": "common.schema.json#/$defs/coverage"
     }
   },
   "required": [
@@ -159,6 +257,8 @@
     "run_id",
     "source_sha256",
     "parser_version",
+    "source_encoding",
+    "parse_options",
     "offset_unit",
     "blocks",
     "coverage"

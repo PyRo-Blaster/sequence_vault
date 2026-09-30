@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "Shared contract definitions v1 (draft)",
+  "description": "Definitions shared by DocumentIR, extraction results and review candidates. Offsets use Unicode code points and half-open ranges.",
+  "$defs": {
+    "block_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A half-open code-point range inside one immutable DocumentIR block.",
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "block_id",
+        "start",
+        "end"
+      ]
+    },
+    "sequence_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A block span with its assembly order. Orders are unique and contiguous from 1 within a record.",
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "block_id",
+        "start",
+        "end",
+        "order"
+      ]
+    },
+    "molecule_type": {
+      "type": "string",
+      "enum": [
+        "protein",
+        "nucleic_acid",
+        "uncertain"
+      ]
+    },
+    "name": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A name exactly as found. Filename and manual names carry no block evidence; every other source must point at the characters it came from.",
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "fasta_header",
+            "table_cell",
+            "heading",
+            "filename",
+            "manual"
+          ]
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/block_span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "source",
+        "evidence"
+      ],
+      "if": {
+        "properties": {
+          "source": {
+            "enum": [
+              "filename",
+              "manual"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "evidence": {
+            "$ref": "#/$defs/block_span"
+          }
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Something the rules or model noticed during extraction. Observations carry no severity and no QC rule; deterministic QC decides both.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "name_conflict",
+            "unclear_mapping",
+            "possible_truncation",
+            "possible_nucleic_acid",
+            "cross_block_join",
+            "unsupported_content"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/block_span"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "message",
+        "evidence"
+      ]
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A deterministic QC result. The rule must exist in the registry named by the candidate's qc_version, and severity must equal the registry value.",
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "pattern": "^QC[0-9]{2}$"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "INFO",
+            "REVIEW",
+            "BLOCK"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/block_span"
+          }
+        }
+      },
+      "required": [
+        "rule_id",
+        "severity",
+        "message",
+        "evidence"
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unresolved_blocks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "unresolved_blocks",
+        "truncated"
+      ]
+    }
+  }
+}

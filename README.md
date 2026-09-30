@@ -35,13 +35,15 @@ Every reserved directory has a README or Python package marker explaining its pu
 
 ## Check the scaffold
 
-Requires Python 3.12 or newer; no third-party dependencies are needed for these repository checks.
+Requires Python 3.12 or newer. The checks use the pinned JSON Schema validator in `scripts/requirements.txt`; install it into a virtual environment first.
 
 ```sh
+python3 -m venv .venv && . .venv/bin/activate
+make check-deps
 make check
 ```
 
-This checks JSON syntax, local JSON Schema references, synthetic example consistency, Python syntax, required architecture paths, and whitespace errors. It does not validate product behavior or satisfy the design's acceptance criteria. CI runs the same command. No application server is available at this stage.
+This validates the synthetic examples against the draft JSON Schemas, checks that the schemas reject states the design forbids, and checks cross-example span consistency, QC registry invariants, Python syntax, required architecture paths, and whitespace errors. It does not validate product behavior or satisfy the design's acceptance criteria. CI runs the same command. No application server is available at this stage.
 
 ## Design constraints
 
