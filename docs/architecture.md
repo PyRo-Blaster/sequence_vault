@@ -1,6 +1,6 @@
 # Architecture and implementation boundaries
 
-The original specification is in `design/Protein_Sequence_App_Design_v1.0_EN.md`. This document maps its sections to code ownership; it does not replace its contracts.
+The original specification is in `design/Protein_Sequence_App_Design_v1.0_EN.md`. This document maps its sections to code ownership; it does not replace its contracts. Step-by-step diagrams are in [workflow.md](workflow.md).
 
 ## Runtime flow
 
