@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "file_id": "file_synthetic",
+  "run_id": "run_synthetic",
+  "source_sha256": "244a4147fd48edb911104ceb20797818d99296ee8b7718d1e57914a801e8b438",
+  "parser_version": "synthetic-example-1",
+  "offset_unit": "unicode_codepoint",
+  "blocks": [
+    {
+      "block_id": "h1",
+      "type": "fasta_header",
+      "raw_text": "synthetic_protein",
+      "location": {
+        "kind": "text"
+      },
+      "extraction_method": "text_parser"
+    },
+    {
+      "block_id": "p1",
+      "type": "sequence",
+      "raw_text": "ACDEFGHIKLMNPQRSTVWY",
+      "location": {
+        "kind": "text"
+      },
+      "extraction_method": "text_parser"
+    }
+  ],
+  "coverage": {
+    "unresolved_blocks": [],
+    "truncated": false,
+    "warnings": []
+  }
+}

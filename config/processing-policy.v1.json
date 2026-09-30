@@ -1,0 +1,47 @@
+{
+  "policy_version": "1.0",
+  "status": "draft",
+  "published_molecule_types": [
+    "protein"
+  ],
+  "human_confirmation_required": true,
+  "automatic_ingestion_enabled": false,
+  "automatic_eligibility_mode": "shadow",
+  "ai_enabled_by_default": false,
+  "limits": {
+    "max_file_bytes": 20000000,
+    "max_files_per_batch": 50,
+    "max_pdf_pages": 100,
+    "max_candidates_per_file": 1000,
+    "max_residues_per_sequence": 100000
+  },
+  "limit_exceeded_behavior": "explicit_failure_or_manual_handling",
+  "supported_release_one_formats": [
+    "fasta",
+    "txt",
+    "docx",
+    "csv",
+    "xlsx",
+    "text_pdf"
+  ],
+  "phase_two_formats": [
+    "png",
+    "jpeg",
+    "scanned_pdf"
+  ],
+  "rejected_formats": [
+    "doc",
+    "xls",
+    "macro_enabled_office",
+    "archives"
+  ],
+  "retry": {
+    "max_transient_retries": 3,
+    "strategy": "exponential_backoff_with_jitter",
+    "retry_deterministic_parse_failures": false
+  },
+  "model_output_repair_attempts": 1,
+  "offset_unit": "unicode_codepoint",
+  "standard_protein_alphabet": "ACDEFGHIKLMNPQRSTVWY",
+  "extended_protein_characters": "BZJXUO"
+}

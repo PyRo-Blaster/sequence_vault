@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "Structured extraction result v1 (draft)",
+  "$defs": {
+    "sequence_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "block_id",
+        "start",
+        "end",
+        "order"
+      ]
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "pattern": "^QC(0[1-9]|1[01])$"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "INFO",
+            "REVIEW",
+            "BLOCK"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "block_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "rule_id",
+        "severity",
+        "message"
+      ]
+    },
+    "name": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "fasta_header",
+            "table_cell",
+            "heading",
+            "filename",
+            "manual"
+          ]
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "value",
+        "source",
+        "evidence"
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unresolved_blocks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "unresolved_blocks",
+        "truncated"
+      ]
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "file_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "$ref": "#/$defs/name"
+          },
+          "molecule_type": {
+            "type": "string",
+            "enum": [
+              "protein",
+              "nucleic_acid",
+              "uncertain"
+            ]
+          },
+          "sequence_spans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/sequence_span"
+            }
+          },
+          "association_status": {
+            "type": "string",
+            "enum": [
+              "unambiguous",
+              "ambiguous",
+              "conflicting"
+            ]
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/issue"
+            }
+          }
+        },
+        "required": [
+          "candidate_id",
+          "name",
+          "molecule_type",
+          "sequence_spans",
+          "association_status",
+          "issues"
+        ]
+      }
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    }
+  },
+  "required": [
+    "schema_version",
+    "file_id",
+    "run_id",
+    "records",
+    "coverage"
+  ]
+}

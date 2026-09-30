@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "Review-facing candidate v1 (draft)",
+  "description": "A draft review representation, not authority to commit. Raw source and deterministic transformations are preserved.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "name": {
+      "$ref": "extraction-result.schema.json#/$defs/name"
+    },
+    "sequence_spans": {
+      "type": "array",
+      "items": {
+        "$ref": "extraction-result.schema.json#/$defs/sequence_span"
+      }
+    },
+    "raw_text": {
+      "type": "string"
+    },
+    "normalized_sequence": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "protein",
+        "nucleic_acid",
+        "uncertain"
+      ]
+    },
+    "completeness": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "fragment",
+        "unknown"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "NEEDS_REVIEW",
+        "BLOCKED",
+        "APPROVED",
+        "COMMITTED",
+        "REJECTED",
+        "PENDING_CONTENT"
+      ]
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "extracted",
+        "manual_revision",
+        "legacy_import"
+      ]
+    },
+    "transformation_log": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "required": [
+          "rule_id",
+          "operation",
+          "reason",
+          "positions"
+        ]
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "extraction-result.schema.json#/$defs/issue"
+      }
+    },
+    "qc_version": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "run_id",
+    "revision",
+    "name",
+    "sequence_spans",
+    "raw_text",
+    "normalized_sequence",
+    "type",
+    "completeness",
+    "status",
+    "origin",
+    "transformation_log",
+    "issues",
+    "qc_version"
+  ]
+}

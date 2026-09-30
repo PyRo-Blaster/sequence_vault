@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "DocumentIR v1 (draft)",
+  "description": "Immutable source-bound blocks; offsets use Unicode code points and half-open ranges.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "file_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "parser_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "offset_unit": {
+      "const": "unicode_codepoint"
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "block_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "paragraph",
+              "table_cell",
+              "fasta_header",
+              "sequence",
+              "text",
+              "image"
+            ]
+          },
+          "raw_text": {
+            "type": "string"
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "docx_paragraph",
+                  "docx_table_cell",
+                  "spreadsheet_cell",
+                  "pdf_region",
+                  "image_region"
+                ]
+              },
+              "paragraph_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "table_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "column": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "worksheet": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cell": {
+                "type": "string",
+                "minLength": 1
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "bbox": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 4,
+                "maxItems": 4
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "extraction_method": {
+            "type": "string",
+            "enum": [
+              "text_parser",
+              "ocr",
+              "manual_transcription"
+            ]
+          }
+        },
+        "required": [
+          "block_id",
+          "type",
+          "raw_text",
+          "location",
+          "extraction_method"
+        ]
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unresolved_blocks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "unresolved_blocks",
+        "truncated"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "file_id",
+    "run_id",
+    "source_sha256",
+    "parser_version",
+    "offset_unit",
+    "blocks",
+    "coverage"
+  ]
+}

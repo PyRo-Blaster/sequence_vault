@@ -1,0 +1,73 @@
+{
+  "qc_version": "1.0",
+  "status": "draft",
+  "generic_block_override_allowed": false,
+  "rules": [
+    {
+      "rule_id": "QC01",
+      "severity": "BLOCK",
+      "description": "Empty sequence or out-of-range reference",
+      "resolution": "Repair evidence or await content."
+    },
+    {
+      "rule_id": "QC02",
+      "severity": "INFO",
+      "description": "Whitespace, line breaks, letter case",
+      "resolution": "Normalize deterministically and log each transformation."
+    },
+    {
+      "rule_id": "QC03",
+      "severity": "BLOCK",
+      "description": "Digits, invalid symbols, Unicode look-alikes",
+      "resolution": "Locate characters; never delete indiscriminately. Proven position numbering requires a dedicated rule."
+    },
+    {
+      "rule_id": "QC04",
+      "severity": "REVIEW",
+      "description": "Extended residues B Z J X U O",
+      "resolution": "Confirm semantics; retain values without substitution."
+    },
+    {
+      "rule_id": "QC05",
+      "severity": "BLOCK",
+      "description": "Ellipses, truncation, omitted blocks",
+      "resolution": "Re-extract, obtain source, or explicitly register an evidence-supported fragment."
+    },
+    {
+      "rule_id": "QC06",
+      "severity": "REVIEW",
+      "description": "Asterisks, gaps, numbering",
+      "resolution": "Apply only an explicit evidence-based transformation with confirmation and audit."
+    },
+    {
+      "rule_id": "QC07",
+      "severity": "REVIEW",
+      "description": "Name conflict or unclear mapping",
+      "resolution": "Select, split or reassociate using evidence."
+    },
+    {
+      "rule_id": "QC08",
+      "severity": "REVIEW",
+      "description": "OCR, tracked changes, unsupported content",
+      "resolution": "Resolve source and coverage risks."
+    },
+    {
+      "rule_id": "QC09",
+      "severity": "REVIEW",
+      "description": "Same name, different sequence",
+      "resolution": "Explicit new version or rename; never overwrite."
+    },
+    {
+      "rule_id": "QC10",
+      "severity": "INFO",
+      "description": "Identical sequence exists",
+      "resolution": "Reuse the entity; separately decide the application record."
+    },
+    {
+      "rule_id": "QC11",
+      "severity": "REVIEW",
+      "description": "Uncertain protein classification",
+      "resolution": "Confirm type; nucleic acids cannot enter published release-one data."
+    }
+  ]
+}
