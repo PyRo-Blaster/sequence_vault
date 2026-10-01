@@ -52,7 +52,7 @@ class Api:
         headers = dict(kwargs.pop("headers", {}))
         if user:
             headers["X-Dev-User"] = user
-        if method in {"POST", "PUT", "PATCH"}:
+        if method in {"POST", "PUT", "PATCH", "DELETE"}:
             headers = {**WRITE, **headers}
         return self.client.request(method, path, headers=headers, **kwargs)
 

@@ -154,3 +154,20 @@ sys.stdout.buffer.write(builders.docx(["Construct_${id}", [("t", "MKTAYIAKQRQISF
   await expect(page.getByText("当前按「原文」解析")).toBeVisible();
   await expect(page.getByTestId("candidate-0").getByLabel("序列")).toContainText("WWWW");
 });
+
+test("project administrators see quality and manage roles", async ({ page }) => {
+  await login(page, "admin@example.test");
+  await page.getByRole("link", { name: "项目管理" }).click();
+  await expect(page.getByText("质量概览")).toBeVisible();
+  await expect(page.getByText("人工修订率")).toBeVisible();
+  const bob = page.getByRole("row", { name: /bob@example\.test/ });
+  await expect(bob.getByText("上传", { exact: true })).toBeVisible();
+  await page.getByLabel("登录账号").fill("bob@example.test");
+  await page.getByRole("combobox", { name: "角色" }).click();
+  await page.getByTitle("查看", { exact: true }).click();
+  await page.getByRole("button", { name: "授予角色" }).click();
+  const viewerTag = bob.locator(".ant-tag", { hasText: /^查看$/ });
+  await expect(viewerTag).toBeVisible();
+  await bob.getByRole("button", { name: "撤销查看角色" }).click();
+  await expect(viewerTag).toHaveCount(0);
+});

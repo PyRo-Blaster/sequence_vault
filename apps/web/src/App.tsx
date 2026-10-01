@@ -83,7 +83,7 @@ function Shell({ me }: { me: Me }) {
           items={[
             { key: "tasks", label: <Link to="/tasks">上传与任务</Link> },
             { key: "records", label: <Link to="/records">序列检索</Link> },
-            { key: "projects", label: <Link to="/projects">项目与权限</Link> },
+            { key: "projects", label: <Link to="/projects">项目管理</Link> },
           ]}
         />
         <Space>

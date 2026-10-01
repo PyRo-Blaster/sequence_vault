@@ -237,6 +237,43 @@ class RecordDetail(Model):
     versions: list[Version]
 
 
+class Member(Model):
+    user_id: str
+    subject: str
+    display_name: str
+    roles: list[Literal["uploader", "reviewer", "viewer", "project_admin"]]
+
+
+class MemberList(Model):
+    items: list[Member]
+
+
+class FormatQuality(Model):
+    format: str
+    tasks: int
+    failed: int
+    failure_rate: float | None
+
+
+class RunVersions(Model):
+    parser_version: str | None
+    model_version: str | None
+    prompt_version: str | None
+    runs: int
+
+
+class Quality(Model):
+    tasks: dict[str, int]
+    failure_codes: dict[str, int]
+    formats: list[FormatQuality]
+    candidates: dict[str, int]
+    manual_revision_rate: float | None
+    rename_rate: float | None
+    commits: dict[str, int]
+    records: int
+    runs: list[RunVersions]
+
+
 class ErrorBody(Model):
     code: str
     message: str

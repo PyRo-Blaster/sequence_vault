@@ -9,6 +9,7 @@ from sequence_vault.adapters.ai.gateway import AnthropicLocator, build_client
 from sequence_vault.adapters.contracts import Policy, load_policy, load_registry, schema_errors
 from sequence_vault.adapters.parsers.registry import enabled_formats
 from sequence_vault.adapters.parsers.sandbox import SandboxedParser
+from sequence_vault.adapters.persistence.admin import SqlProjectAdmin
 from sequence_vault.adapters.persistence.jobs import JobQueue
 from sequence_vault.adapters.persistence.queries import SqlReadModel
 from sequence_vault.adapters.persistence.repositories import SqlUnitOfWorkFactory
@@ -17,6 +18,7 @@ from sequence_vault.adapters.security.filetype import ContentTypeDetector
 from sequence_vault.adapters.storage.local import LocalObjectStore
 from sequence_vault.adapters.storage.s3 import S3ObjectStore
 from sequence_vault.api.app import ApiServices
+from sequence_vault.application.administration import AdministrationService
 from sequence_vault.application.commit import CommitService
 from sequence_vault.application.model_assist import LocatorModel
 from sequence_vault.application.ports import ObjectStore, Scanner
@@ -78,6 +80,7 @@ def api_services(container: Container) -> ApiServices:
         reviews=container.reviews,
         commits=container.commits,
         tasks=container.tasks,
+        administration=AdministrationService(container.uow, SqlProjectAdmin(container.engine)),
     )
 
 

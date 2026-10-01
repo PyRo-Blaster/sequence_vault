@@ -22,6 +22,7 @@ class Action(StrEnum):
     VIEW = "view"
     EXPORT = "export"
     MANAGE_MEMBERS = "manage_members"
+    VIEW_QUALITY = "view_quality"
 
 
 PERMISSIONS: dict[Action, frozenset[Role]] = {
@@ -32,6 +33,7 @@ PERMISSIONS: dict[Action, frozenset[Role]] = {
     Action.VIEW: frozenset(Role),
     Action.EXPORT: frozenset(Role),
     Action.MANAGE_MEMBERS: frozenset({Role.PROJECT_ADMIN}),
+    Action.VIEW_QUALITY: frozenset({Role.PROJECT_ADMIN, Role.REVIEWER}),
 }
 
 

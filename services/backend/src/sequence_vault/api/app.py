@@ -12,6 +12,7 @@ from sequence_vault.adapters.persistence.queries import decode_cursor, encode_cu
 from sequence_vault.api import errors, schemas
 from sequence_vault.api.auth import Authenticator, Principal, RateLimiter, guard
 from sequence_vault.api.errors import ApiError
+from sequence_vault.application.administration import AdministrationService
 from sequence_vault.application.commit import CommitItem, CommitService
 from sequence_vault.application.processing import TaskService
 from sequence_vault.application.queries import QueryService, ReadModel
@@ -59,6 +60,11 @@ class RevisionRequest(BaseModel):
     revision: int = Field(ge=1)
 
 
+class GrantRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=320)
+    role: Literal["uploader", "reviewer", "viewer", "project_admin"]
+
+
 class ReprocessRequest(BaseModel):
     tracked_changes_view: Literal["original", "changes_accepted"] | None = None
 
@@ -102,6 +108,7 @@ class ApiServices:
     reviews: ReviewService
     commits: CommitService
     tasks: TaskService
+    administration: AdministrationService
 
 
 def create_app(container: ApiServices) -> FastAPI:
@@ -352,6 +359,36 @@ def create_app(container: ApiServices) -> FastAPI:
         for outcome in outcomes:
             counts[outcome.status.value] = counts.get(outcome.status.value, 0) + 1
         return {"results": results, "counts": counts}
+
+    # -- administration -------------------------------------------------------------
+
+    @app.get("/v1/projects/{project_id}/members", tags=["admin"], response_model=schemas.MemberList)
+    def members(project_id: str, user: User) -> Json:
+        return {"items": container.administration.members(user.actor, project_id)}
+
+    @app.post(
+        "/v1/projects/{project_id}/members", tags=["admin"], response_model=schemas.MemberList
+    )
+    def grant(project_id: str, body: GrantRequest, user: User) -> Json:
+        items = container.administration.grant(user.actor, project_id, body.subject, body.role)
+        return {"items": items}
+
+    @app.delete(
+        "/v1/projects/{project_id}/members/{user_id}/roles/{role}",
+        tags=["admin"],
+        response_model=schemas.MemberList,
+    )
+    def revoke(
+        project_id: str,
+        user_id: str,
+        role: Literal["uploader", "reviewer", "viewer", "project_admin"],
+        user: User,
+    ) -> Json:
+        return {"items": container.administration.revoke(user.actor, project_id, user_id, role)}
+
+    @app.get("/v1/projects/{project_id}/quality", tags=["admin"], response_model=schemas.Quality)
+    def quality(project_id: str, user: User) -> Json:
+        return container.administration.quality(user.actor, project_id)
 
     # -- records ----------------------------------------------------------------------
 
