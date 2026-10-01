@@ -1,18 +1,18 @@
 """Worker process entry point: python -m sequence_vault.entrypoints.worker_main"""
 
-import logging
 import signal
 import socket
 import threading
 import uuid
 
 from sequence_vault.entrypoints.bootstrap import build
+from sequence_vault.observability import configure
 from sequence_vault.settings import Settings
 from sequence_vault.workers.worker import Worker
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    configure()
     container = build(Settings.from_env())
     worker = Worker(
         container.queue,

@@ -22,7 +22,7 @@ test:
 	$(UV) run --locked pytest
 
 integration:
-	$(UV) run --locked pytest tests/integration
+	$(UV) run --locked pytest tests/integration tests/security
 
 web:
 	cd apps/web && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build

@@ -105,7 +105,10 @@ def build_model(settings: Settings) -> LocatorModel | None:
 
 
 def build(settings: Settings, *, engine: Engine | None = None) -> Container:
-    engine = engine or create_engine(settings.database_url, pool_pre_ping=True)
+    # hide_parameters keeps sequence values out of database error messages.
+    engine = engine or create_engine(
+        settings.database_url, pool_pre_ping=True, hide_parameters=True
+    )
     uow = SqlUnitOfWorkFactory(engine)
     registry = load_registry(settings.config_dir)
     policy = load_policy(settings.config_dir)
