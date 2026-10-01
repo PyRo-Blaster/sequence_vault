@@ -12,6 +12,6 @@ SEQUENCE_VAULT_DATABASE_URL=postgresql+psycopg://user@host/db \
 - `sequence_entity (tenant_id, molecule_type, sha256)`, `record (project_id, name_key)` and `record_version (record_id, version_no)` are unique, and each record has one current version.
 - `document_block`, `sequence_entity` and `legacy_record` rows cannot be updated or deleted; `record_version` rows can only be superseded.
 
-Versions: `0001` initial schema; `0002` per-task parse options; `0003` legacy migration batches and legacy IDs.
+Versions: `0001` initial schema; `0002` per-task parse options; `0003` legacy migration batches and legacy IDs; `0004` search indexes.
 
 Never edit a released migration; add a new version with a rollout and rollback plan.

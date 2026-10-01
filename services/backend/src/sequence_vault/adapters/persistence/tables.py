@@ -169,6 +169,7 @@ sequence_entity = Table(
     Column("sha256", Text, nullable=False),
     _created(),
     UniqueConstraint("tenant_id", "molecule_type", "sha256"),
+    Index("sequence_entity_sha256", "sha256"),
 )
 
 record = Table(
@@ -181,6 +182,7 @@ record = Table(
     Column("display_name", Text, nullable=False),
     _created(),
     UniqueConstraint("project_id", "name_key"),
+    Index("record_name_order", "name_key", "id"),
 )
 
 record_version = Table(
