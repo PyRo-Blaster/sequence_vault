@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Connection, create_engine, func, select, text
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import URL, make_url
 
 from sequence_vault.adapters.persistence import tables as t
 from sequence_vault.application.ports import ObjectStore
@@ -52,8 +52,29 @@ def _libpq(url: str) -> tuple[str, dict[str, str]]:
     env = {**os.environ}
     if parsed.password:
         env["PGPASSWORD"] = str(parsed.password)
-    plain = parsed.set(drivername="postgresql", password=None)
+    # URL.set(password=None) keeps the password; build the URL without it instead.
+    plain = URL.create(
+        "postgresql",
+        username=parsed.username,
+        host=parsed.host,
+        port=parsed.port,
+        database=parsed.database,
+        query=parsed.query,
+    )
     return plain.render_as_string(hide_password=False), env
+
+
+def pg_tool(name: str) -> str:
+    """pg_dump or pg_restore: $SEQUENCE_VAULT_PG_BIN, else the newest installed PostgreSQL
+    client, else PATH. A client older than the server refuses to dump it."""
+    configured = os.environ.get("SEQUENCE_VAULT_PG_BIN")
+    if configured:
+        return str(Path(configured) / name)
+    installed = sorted(
+        (path for path in Path("/usr/lib/postgresql").glob(f"*/bin/{name}") if path.exists()),
+        key=lambda path: int(path.parts[-3]) if path.parts[-3].isdigit() else 0,
+    )
+    return str(installed[-1]) if installed else name
 
 
 def fingerprint(connection: Connection, store: ObjectStore) -> Json:
@@ -161,7 +182,7 @@ def backup(settings: Settings, destination: Path) -> Path:
             snapshot: str = connection.execute(text("SELECT pg_export_snapshot()")).scalar_one()
             subprocess.run(
                 [
-                    "pg_dump",
+                    pg_tool("pg_dump"),
                     "--format=custom",
                     "--no-owner",
                     "--no-privileges",
@@ -214,7 +235,7 @@ def restore(settings: Settings, source: Path) -> list[str]:
         url, env = _libpq(settings.database_url)
         subprocess.run(
             [
-                "pg_restore",
+                pg_tool("pg_restore"),
                 "--no-owner",
                 "--no-privileges",
                 "--exit-on-error",

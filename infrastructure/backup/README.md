@@ -1,6 +1,6 @@
 # Backup and recovery
 
-`backup.py` backs up PostgreSQL and the object store together, and proves that a restore reproduces them. It reads the same `SEQUENCE_VAULT_*` settings as the services. It needs `pg_dump` and `pg_restore` at the same major version as the server, or newer.
+`backup.py` backs up PostgreSQL and the object store together, and proves that a restore reproduces them. It reads the same `SEQUENCE_VAULT_*` settings as the services. It needs `pg_dump` and `pg_restore` at the same major version as the server, or newer. The tool uses the newest client under `/usr/lib/postgresql`, or `SEQUENCE_VAULT_PG_BIN` when set. The database password goes through `PGPASSWORD`, never the command line.
 
 ```sh
 uv run python infrastructure/backup/backup.py backup /backups          # prints the new backup directory
