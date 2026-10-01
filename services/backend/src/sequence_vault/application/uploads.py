@@ -18,9 +18,24 @@ from sequence_vault.application.ports import (
 )
 from sequence_vault.domain.task import FileTask, TaskStatus
 
-ACCEPTED_EXTENSIONS = frozenset(
-    {".fasta", ".fa", ".faa", ".fas", ".seq", ".txt", ".csv", ".tsv", ".docx", ".xlsx", ".pdf"}
-)
+FORMAT_EXTENSIONS: dict[str, frozenset[str]] = {
+    "fasta": frozenset({".fasta", ".fa", ".faa", ".fas"}),
+    "txt": frozenset({".txt", ".seq"}),
+    "csv": frozenset({".csv", ".tsv"}),
+    "xlsx": frozenset({".xlsx"}),
+    "docx": frozenset({".docx"}),
+    "text_pdf": frozenset({".pdf"}),
+}
+
+
+def accepted_extensions(enabled_formats: frozenset[str]) -> frozenset[str]:
+    """Extensions offered for upload. Content detection still decides the real format."""
+    extensions = {ext for fmt in enabled_formats for ext in FORMAT_EXTENSIONS.get(fmt, ())}
+    if "fasta" in enabled_formats or "txt" in enabled_formats:
+        extensions |= FORMAT_EXTENSIONS["fasta"] | FORMAT_EXTENSIONS["txt"]
+    return frozenset(extensions)
+
+
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -34,18 +49,25 @@ def clean_file_name(name: str) -> str:
 
 
 class UploadService:
-    def __init__(self, uow_factory: UnitOfWorkFactory, store: ObjectStore, max_bytes: int) -> None:
+    def __init__(
+        self,
+        uow_factory: UnitOfWorkFactory,
+        store: ObjectStore,
+        max_bytes: int,
+        extensions: frozenset[str],
+    ) -> None:
         self.uow_factory = uow_factory
         self.store = store
         self.max_bytes = max_bytes
+        self.extensions = extensions
 
     def create(
         self, actor: Actor, project_id: str, file_name: str, byte_count: int, sha256: str
     ) -> FileRow:
         name = clean_file_name(file_name)
-        if PurePath(name).suffix.lower() not in ACCEPTED_EXTENSIONS:
+        if PurePath(name).suffix.lower() not in self.extensions:
             raise InvalidRequest(
-                "This file type is not accepted. Supported: FASTA, TXT, CSV, XLSX, DOCX, PDF.",
+                "This file type is not accepted. Supported: " + ", ".join(sorted(self.extensions)),
                 code="unsupported_format",
             )
         if byte_count < 1:

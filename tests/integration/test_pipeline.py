@@ -131,7 +131,11 @@ def _zip() -> bytes:
     ("name", "data", "expected"),
     [
         ("archive.fasta", _zip(), ("UNSUPPORTED", None)),
-        ("macro.docx", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\0" * 64, ("UNSUPPORTED", None)),
+        (
+            "legacy_office.fasta",
+            b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\0" * 64,
+            ("UNSUPPORTED", None),
+        ),
         ("virus.fasta", b">A\n" + EICAR, ("FAILED", "infected")),
         ("binary.txt", bytes(range(256)) * 8, ("UNSUPPORTED", None)),
     ],

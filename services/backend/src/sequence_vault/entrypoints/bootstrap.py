@@ -9,16 +9,19 @@ from sequence_vault.adapters.contracts import Policy, load_policy, load_registry
 from sequence_vault.adapters.parsers.registry import enabled_formats
 from sequence_vault.adapters.parsers.sandbox import SandboxedParser
 from sequence_vault.adapters.persistence.jobs import JobQueue
+from sequence_vault.adapters.persistence.queries import SqlReadModel
 from sequence_vault.adapters.persistence.repositories import SqlUnitOfWorkFactory
 from sequence_vault.adapters.security.clamd import ClamdScanner, DevelopmentScanner
 from sequence_vault.adapters.security.filetype import ContentTypeDetector
 from sequence_vault.adapters.storage.local import LocalObjectStore
 from sequence_vault.adapters.storage.s3 import S3ObjectStore
+from sequence_vault.api.app import ApiServices
 from sequence_vault.application.commit import CommitService
 from sequence_vault.application.ports import ObjectStore, Scanner
 from sequence_vault.application.processing import Pipeline, PipelineLimits, TaskService
+from sequence_vault.application.queries import QueryService
 from sequence_vault.application.review import ReviewService
-from sequence_vault.application.uploads import UploadService
+from sequence_vault.application.uploads import UploadService, accepted_extensions
 from sequence_vault.domain.qc.registry import QcRegistry
 from sequence_vault.settings import Settings
 
@@ -62,6 +65,20 @@ def build_scanner(settings: Settings) -> Scanner:
     return ClamdScanner(settings.clamd_address)
 
 
+def api_services(container: Container) -> ApiServices:
+    read = SqlReadModel(container.engine)
+    return ApiServices(
+        settings=container.settings,
+        policy=container.policy,
+        read=read,
+        queries=QueryService(read, container.uow, container.registry, container.store),
+        uploads=container.uploads,
+        reviews=container.reviews,
+        commits=container.commits,
+        tasks=container.tasks,
+    )
+
+
 def build(settings: Settings, *, engine: Engine | None = None) -> Container:
     engine = engine or create_engine(settings.database_url, pool_pre_ping=True)
     uow = SqlUnitOfWorkFactory(engine)
@@ -93,7 +110,9 @@ def build(settings: Settings, *, engine: Engine | None = None) -> Container:
         scanner=scanner,
         queue=JobQueue(engine),
         pipeline=pipeline,
-        uploads=UploadService(uow, store, policy.limits.max_file_bytes),
+        uploads=UploadService(
+            uow, store, policy.limits.max_file_bytes, accepted_extensions(enabled_formats())
+        ),
         reviews=ReviewService(uow, registry),
         commits=CommitService(uow, registry),
         tasks=TaskService(uow),
