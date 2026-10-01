@@ -5,6 +5,7 @@ from types import TracebackType
 from typing import Any, Self
 
 from sqlalchemy import Connection, Engine, func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from sequence_vault.adapters.persistence import tables as t
@@ -149,13 +150,61 @@ class SqlFiles:
             security_status=row.security_status,
         )
 
+    def create(self, row: FileRow) -> None:
+        self.c.execute(
+            insert(t.source_file).values(
+                id=row.file_id,
+                tenant_id=row.tenant_id,
+                project_id=row.project_id,
+                uploaded_by=row.uploaded_by,
+                original_name=row.original_name,
+                declared_bytes=row.declared_bytes,
+                declared_sha256=row.declared_sha256,
+                object_key=row.object_key,
+                security_status=row.security_status,
+            )
+        )
+
+    def mark_uploaded(self, file_id: str, byte_count: int, sha256: str) -> None:
+        self.c.execute(
+            update(t.source_file)
+            .where(t.source_file.c.id == file_id)
+            .values(byte_count=byte_count, sha256=sha256, security_status="uploaded")
+        )
+
+    def set_security(self, file_id: str, status: str, detected_type: str | None) -> None:
+        self.c.execute(
+            update(t.source_file)
+            .where(t.source_file.c.id == file_id)
+            .values(security_status=status, detected_type=detected_type)
+        )
+
 
 class SqlTasks:
     def __init__(self, connection: Connection) -> None:
         self.c = connection
 
+    def get(self, task_id: str, *, for_update: bool = False) -> TaskRow | None:
+        return self._one(t.file_task.c.id == task_id, for_update)
+
     def get_by_file(self, file_id: str, *, for_update: bool = False) -> TaskRow | None:
-        query = select(t.file_task).where(t.file_task.c.file_id == file_id)
+        return self._one(t.file_task.c.file_id == file_id, for_update)
+
+    def create(self, row: TaskRow) -> None:
+        _conflicts(
+            self.c,
+            insert(t.file_task).values(
+                id=row.task.task_id,
+                file_id=row.file_id,
+                status=row.task.status.value,
+                failure_code=row.task.failure_code,
+                current_run_id=row.current_run_id,
+                generation=row.generation,
+            ),
+        )
+
+    def _one(self, condition: Any, for_update: bool) -> TaskRow | None:
+        query = select(t.file_task).where(condition)
         if for_update:
             query = query.with_for_update()
         row = self.c.execute(query).first()
@@ -215,6 +264,57 @@ class SqlRuns:
             BlockRow(row.block_id, row.type, row.raw_text, row.location, row.extraction_method)
             for row in rows
         ]
+
+    def create(self, row: RunRow, *, parse_options: Json, source_encoding: str) -> None:
+        self.c.execute(
+            insert(t.extraction_run).values(
+                id=row.run_id,
+                file_id=row.file_id,
+                generation=row.generation,
+                parser_version=row.parser_version,
+                model_version=row.model_version,
+                prompt_version=row.prompt_version,
+                schema_version=row.schema_version,
+                qc_version=row.qc_version,
+                parse_options=parse_options,
+                source_encoding=source_encoding,
+                coverage=row.coverage,
+                extraction_result=row.extraction_result,
+            )
+        )
+
+    def add_blocks(self, run_id: str, blocks: list[Json]) -> None:
+        if not blocks:
+            return
+        self.c.execute(
+            insert(t.document_block),
+            [
+                {
+                    "run_id": run_id,
+                    "block_id": block["block_id"],
+                    "position": position,
+                    "type": block["type"],
+                    "raw_text": block["raw_text"],
+                    "location": block["location"],
+                    "extraction_method": block["extraction_method"],
+                }
+                for position, block in enumerate(blocks)
+            ],
+        )
+
+    def set_extraction(
+        self, run_id: str, result: Json, *, model_version: str | None, prompt_version: str | None
+    ) -> None:
+        self.c.execute(
+            update(t.extraction_run)
+            .where(t.extraction_run.c.id == run_id)
+            .values(
+                extraction_result=result,
+                coverage=result["coverage"],
+                model_version=model_version,
+                prompt_version=prompt_version,
+            )
+        )
 
 
 class SqlPublication:
@@ -435,6 +535,18 @@ class SqlCommits:
         )
 
 
+class SqlJobs:
+    def __init__(self, connection: Connection) -> None:
+        self.c = connection
+
+    def enqueue(self, task_id: str, generation: int, stage: str) -> None:
+        self.c.execute(
+            pg_insert(t.stage_job)
+            .values(task_id=task_id, generation=generation, stage=stage)
+            .on_conflict_do_nothing(index_elements=["task_id", "generation", "stage"])
+        )
+
+
 class SqlUnitOfWork:
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
@@ -453,6 +565,7 @@ class SqlUnitOfWork:
         self.reviews = SqlReviews(c)
         self.audit = SqlAudit(c)
         self.commits = SqlCommits(c)
+        self.jobs = SqlJobs(c)
         return self
 
     def commit(self) -> None:

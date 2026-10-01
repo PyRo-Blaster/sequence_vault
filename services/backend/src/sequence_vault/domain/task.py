@@ -84,6 +84,13 @@ class FileTask:
             raise ItemsPending(f"{len(pending)} candidate(s) still need a decision.")
         return replace(self, status=TaskStatus.COMPLETED)
 
+    def reprocess(self) -> "FileTask":
+        """Start a new extraction run from parsing (T16). Earlier runs and published
+        versions are kept; open candidates of the old run must be superseded."""
+        if self.status not in {TaskStatus.REVIEW_READY, TaskStatus.COMPLETED, TaskStatus.FAILED}:
+            raise TaskError(f"A {self.status} task cannot be reprocessed.")
+        return replace(self, status=TaskStatus.PARSING, failure_code=None)
+
     def _require_open(self) -> None:
         if self.status in TERMINAL:
             raise TaskError(f"Task is already {self.status}.")

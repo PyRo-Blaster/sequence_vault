@@ -101,16 +101,30 @@ class Candidates(Protocol):
 
 class Files(Protocol):
     def get(self, file_id: str) -> FileRow | None: ...
+    def create(self, row: FileRow) -> None: ...
+    def mark_uploaded(self, file_id: str, byte_count: int, sha256: str) -> None: ...
+    def set_security(self, file_id: str, status: str, detected_type: str | None) -> None: ...
 
 
 class Tasks(Protocol):
+    def get(self, task_id: str, *, for_update: bool = False) -> TaskRow | None: ...
     def get_by_file(self, file_id: str, *, for_update: bool = False) -> TaskRow | None: ...
+    def create(self, row: TaskRow) -> None: ...
     def save(self, row: TaskRow) -> None: ...
 
 
 class Runs(Protocol):
     def get(self, run_id: str) -> RunRow | None: ...
     def blocks(self, run_id: str) -> list[BlockRow]: ...
+    def create(self, row: RunRow, *, parse_options: Json, source_encoding: str) -> None: ...
+    def add_blocks(self, run_id: str, blocks: list[Json]) -> None: ...
+    def set_extraction(
+        self, run_id: str, result: Json, *, model_version: str | None, prompt_version: str | None
+    ) -> None: ...
+
+
+class Jobs(Protocol):
+    def enqueue(self, task_id: str, generation: int, stage: str) -> None: ...
 
 
 class Publication(Protocol):
@@ -186,6 +200,8 @@ class UnitOfWork(Protocol):
     def audit(self) -> Audit: ...
     @property
     def commits(self) -> Commits: ...
+    @property
+    def jobs(self) -> Jobs: ...
 
     def __enter__(self) -> Self: ...
     def __exit__(
@@ -202,3 +218,63 @@ class UnitOfWorkFactory(Protocol):
 
 
 SequenceOfRows = Sequence[CandidateRow]
+
+
+class TransientError(Exception):
+    """A temporary infrastructure failure; the stage is retried with backoff."""
+
+
+class ScannerUnavailable(TransientError):
+    pass
+
+
+class ParseFailed(Exception):
+    """Deterministic parse failure; never retried."""
+
+    def __init__(self, message: str, *, code: str = "parse_failed") -> None:
+        super().__init__(message)
+        self.code = code
+
+
+@dataclass(frozen=True, slots=True)
+class ScanVerdict:
+    clean: bool
+    signature: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Detection:
+    """``format`` is None when the content is not acceptable; ``reason`` explains why."""
+
+    format: str | None
+    reason: str
+
+
+class ObjectStore(Protocol):
+    def put(self, key: str, data: bytes) -> None: ...
+    def get(self, key: str) -> bytes: ...
+
+
+class Scanner(Protocol):
+    def scan(self, data: bytes) -> ScanVerdict: ...
+
+
+class TypeDetector(Protocol):
+    def detect(self, data: bytes, file_name: str) -> Detection: ...
+
+
+class DocumentParser(Protocol):
+    def parse(
+        self, format: str, data: bytes, *, file_id: str, run_id: str, parse_options: Json
+    ) -> Json: ...
+
+
+@dataclass(frozen=True, slots=True)
+class Job:
+    """One pipeline stage to run for one task generation."""
+
+    job_id: int
+    task_id: str
+    generation: int
+    stage: str
+    attempts: int

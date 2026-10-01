@@ -36,3 +36,10 @@ def test_unsupported_is_decided_while_scanning() -> None:
     assert scanning.mark_unsupported().status is TaskStatus.UNSUPPORTED
     with pytest.raises(TaskError):
         FileTask("t1").mark_unsupported()
+
+
+def test_reprocessing_restarts_from_parsing() -> None:
+    task = FileTask("t1", status=TaskStatus.COMPLETED)
+    assert task.reprocess().status is TaskStatus.PARSING
+    with pytest.raises(TaskError):
+        FileTask("t1", status=TaskStatus.SCANNING).reprocess()

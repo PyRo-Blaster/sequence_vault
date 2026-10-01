@@ -1,0 +1,100 @@
+"""Composition root: build adapters and services from Settings."""
+
+from dataclasses import dataclass
+from functools import partial
+
+from sqlalchemy import Engine, create_engine
+
+from sequence_vault.adapters.contracts import Policy, load_policy, load_registry, schema_errors
+from sequence_vault.adapters.parsers.registry import enabled_formats
+from sequence_vault.adapters.parsers.sandbox import SandboxedParser
+from sequence_vault.adapters.persistence.jobs import JobQueue
+from sequence_vault.adapters.persistence.repositories import SqlUnitOfWorkFactory
+from sequence_vault.adapters.security.clamd import ClamdScanner, DevelopmentScanner
+from sequence_vault.adapters.security.filetype import ContentTypeDetector
+from sequence_vault.adapters.storage.local import LocalObjectStore
+from sequence_vault.adapters.storage.s3 import S3ObjectStore
+from sequence_vault.application.commit import CommitService
+from sequence_vault.application.ports import ObjectStore, Scanner
+from sequence_vault.application.processing import Pipeline, PipelineLimits, TaskService
+from sequence_vault.application.review import ReviewService
+from sequence_vault.application.uploads import UploadService
+from sequence_vault.domain.qc.registry import QcRegistry
+from sequence_vault.settings import Settings
+
+
+@dataclass
+class Container:
+    settings: Settings
+    engine: Engine
+    uow: SqlUnitOfWorkFactory
+    registry: QcRegistry
+    policy: Policy
+    store: ObjectStore
+    scanner: Scanner
+    queue: JobQueue
+    pipeline: Pipeline
+    uploads: UploadService
+    reviews: ReviewService
+    commits: CommitService
+    tasks: TaskService
+
+
+def build_store(settings: Settings) -> ObjectStore:
+    if settings.storage_backend == "local":
+        return LocalObjectStore(settings.local_storage_dir)
+    if not settings.s3_bucket:
+        raise ValueError("SEQUENCE_VAULT_OBJECT_STORAGE_BUCKET is required for S3 storage.")
+    return S3ObjectStore(
+        settings.s3_bucket,
+        endpoint=settings.s3_endpoint,
+        access_key=settings.s3_access_key,
+        secret_key=settings.s3_secret_key,
+        region=settings.s3_region,
+    )
+
+
+def build_scanner(settings: Settings) -> Scanner:
+    if settings.scanner == "development":
+        return DevelopmentScanner()
+    if not settings.clamd_address:
+        raise ValueError("SEQUENCE_VAULT_CLAMD_ADDRESS is required for the ClamAV scanner.")
+    return ClamdScanner(settings.clamd_address)
+
+
+def build(settings: Settings, *, engine: Engine | None = None) -> Container:
+    engine = engine or create_engine(settings.database_url, pool_pre_ping=True)
+    uow = SqlUnitOfWorkFactory(engine)
+    registry = load_registry(settings.config_dir)
+    policy = load_policy(settings.config_dir)
+    store = build_store(settings)
+    scanner = build_scanner(settings)
+    pipeline = Pipeline(
+        uow,
+        store,
+        scanner,
+        ContentTypeDetector(),
+        SandboxedParser(),
+        registry,
+        enabled_formats(),
+        partial(schema_errors, settings.contracts_dir),
+        PipelineLimits(
+            max_candidates=policy.limits.max_candidates_per_file,
+            max_residues=policy.limits.max_residues_per_sequence,
+        ),
+    )
+    return Container(
+        settings=settings,
+        engine=engine,
+        uow=uow,
+        registry=registry,
+        policy=policy,
+        store=store,
+        scanner=scanner,
+        queue=JobQueue(engine),
+        pipeline=pipeline,
+        uploads=UploadService(uow, store, policy.limits.max_file_bytes),
+        reviews=ReviewService(uow, registry),
+        commits=CommitService(uow, registry),
+        tasks=TaskService(uow),
+    )
