@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: setup check scaffold lint typecheck test integration web e2e dev
+.PHONY: setup check scaffold lint typecheck test integration performance web e2e dev
 setup:
 	$(UV) sync --locked
 
@@ -23,6 +23,9 @@ test:
 
 integration:
 	$(UV) run --locked pytest tests/integration tests/security
+
+performance:
+	$(UV) run --locked pytest -s tests/performance
 
 web:
 	cd apps/web && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build

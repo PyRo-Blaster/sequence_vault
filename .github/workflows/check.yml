@@ -35,6 +35,7 @@ jobs:
       - run: make setup
       - run: make check
       - run: make integration
+      - run: make performance
 
   web:
     runs-on: ubuntu-latest
