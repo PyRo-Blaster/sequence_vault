@@ -68,7 +68,7 @@ def test_heading_paragraphs_and_unnamed_multiples() -> None:
     data = "名称：Heavy\nMKTAYIAKQRQISF\n\nLight:\nDIQMTQSPSSLSAS\n\nMKTAYIAKQRWWWW\n".encode()
     result = run(data, "notes.txt", fasta=False)
     assert summary(result) == [
-        ([("名称：Heavy", "heading")], "unambiguous", 1),
+        ([("Heavy", "heading")], "unambiguous", 1),
         ([("Light", "heading")], "unambiguous", 1),
         ([], "ambiguous", 1),
     ]
@@ -91,3 +91,14 @@ def test_limits_stop_explicitly() -> None:
 def test_sequence_like_ignores_numbers_and_spaces() -> None:
     assert is_sequence_like("1 MKTAYIAKQR 11 QISFVKSHFS")
     assert not is_sequence_like("Purified by affinity chromatography.")
+
+
+def test_heading_labels_are_not_part_of_the_name() -> None:
+    data = "名称：RSPO3 重链\nEVQLVESGGGLVQPGG\n".encode()
+    result = run(data, "a.txt", fasta=False)
+    name = result["records"][0]["names"][0]
+    assert (name["value"], name["evidence"]["start"], name["evidence"]["end"]) == (
+        "RSPO3 重链",
+        3,
+        11,
+    )

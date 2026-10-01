@@ -14,7 +14,7 @@ SCHEMAS = ROOT / "packages/contracts/schemas/v1"
 REQUIRED = (
     "docs/design/Protein_Sequence_App_Design_v1.0_EN.md",
     "packages/contracts/schemas/v1/common.schema.json",
-    "apps/web/src/features/review/README.md",
+    "apps/web/src/features/review/ReviewPage.tsx",
     "services/backend/src/sequence_vault/application/__init__.py",
     "services/backend/src/sequence_vault/workers/__init__.py",
     "database/migrations/README.md",

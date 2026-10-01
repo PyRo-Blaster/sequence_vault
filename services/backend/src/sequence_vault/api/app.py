@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from sequence_vault.adapters.contracts import Policy
 from sequence_vault.adapters.persistence.queries import decode_cursor, encode_cursor
-from sequence_vault.api import errors
+from sequence_vault.api import errors, schemas
 from sequence_vault.api.auth import Authenticator, Principal, RateLimiter, guard
 from sequence_vault.api.errors import ApiError
 from sequence_vault.application.commit import CommitItem, CommitService
@@ -109,17 +109,32 @@ def create_app(container: ApiServices) -> FastAPI:
         title="Sequence Vault API",
         version="1.0.0",
         description="Protein sequence import, evidence review and quality control.",
+        responses={
+            code: {"model": schemas.ErrorBody, "description": text}
+            for code, text in (
+                (400, "Malformed request"),
+                (401, "Not signed in"),
+                (403, "Forbidden"),
+                (404, "Not found"),
+                (409, "Revision or business conflict"),
+                (413, "Limit exceeded"),
+                (422, "Unacceptable content"),
+                (428, "Revision required"),
+                (429, "Rate limited"),
+            )
+        },
     )
     errors.install(app)
     app.middleware("http")(guard(authenticate, RateLimiter()))
 
     User = Annotated[Principal, Depends(authenticate)]
 
-    @app.get("/v1/health", tags=["system"])
+    @app.get("/v1/health", tags=["system"], response_model=schemas.Health)
     def health() -> Json:
-        return {"status": "ok"}
+        settings = container.settings
+        return {"status": "ok", "dev_login": settings.is_development and settings.dev_login}
 
-    @app.get("/v1/me", tags=["system"])
+    @app.get("/v1/me", tags=["system"], response_model=schemas.Me)
     def me(user: User) -> Json:
         return queries.me(user.actor, user.display_name) | {
             "limits": {
@@ -131,7 +146,9 @@ def create_app(container: ApiServices) -> FastAPI:
 
     # -- uploads ----------------------------------------------------------------------
 
-    @app.post("/v1/uploads", status_code=201, tags=["uploads"])
+    @app.post(
+        "/v1/uploads", status_code=201, tags=["uploads"], response_model=schemas.UploadCreated
+    )
     def create_upload(body: UploadRequest, user: User) -> Json:
         row = container.uploads.create(
             user.actor, body.project_id, body.file_name, body.byte_count, body.sha256
@@ -158,7 +175,12 @@ def create_app(container: ApiServices) -> FastAPI:
         )
         return Response(status_code=204)
 
-    @app.post("/v1/uploads/{file_id}/complete", status_code=202, tags=["uploads"])
+    @app.post(
+        "/v1/uploads/{file_id}/complete",
+        status_code=202,
+        tags=["uploads"],
+        response_model=schemas.TaskState,
+    )
     def complete_upload(file_id: str, user: User) -> Json:
         row = container.uploads.complete(user.actor, file_id)
         return {"task_id": row.task.task_id, "status": row.task.status.value}
@@ -175,7 +197,7 @@ def create_app(container: ApiServices) -> FastAPI:
 
     # -- jobs -------------------------------------------------------------------------
 
-    @app.get("/v1/jobs", tags=["jobs"])
+    @app.get("/v1/jobs", tags=["jobs"], response_model=schemas.TaskPage)
     def list_jobs(
         user: User,
         project_id: str,
@@ -185,21 +207,28 @@ def create_app(container: ApiServices) -> FastAPI:
         items, next_cursor = queries.tasks(user.actor, project_id, _cursor(cursor), limit)
         return {"items": items, "next_cursor": next_cursor}
 
-    @app.get("/v1/jobs/{task_id}", tags=["jobs"])
+    @app.get("/v1/jobs/{task_id}", tags=["jobs"], response_model=schemas.Task)
     def get_job(task_id: str, user: User) -> Json:
         return queries.task(user.actor, task_id)
 
-    @app.post("/v1/jobs/{task_id}/cancel", tags=["jobs"])
+    @app.post("/v1/jobs/{task_id}/cancel", tags=["jobs"], response_model=schemas.TaskState)
     def cancel_job(task_id: str, user: User) -> Json:
         row = container.tasks.cancel(user.actor, task_id)
         return {"task_id": task_id, "status": row.task.status.value}
 
-    @app.post("/v1/jobs/{task_id}/reprocess", status_code=202, tags=["jobs"])
+    @app.post(
+        "/v1/jobs/{task_id}/reprocess",
+        status_code=202,
+        tags=["jobs"],
+        response_model=schemas.TaskState,
+    )
     def reprocess_job(task_id: str, user: User) -> Json:
         row = container.tasks.reprocess(user.actor, task_id)
         return {"task_id": task_id, "status": row.task.status.value, "generation": row.generation}
 
-    @app.get("/v1/jobs/{task_id}/candidates", tags=["candidates"])
+    @app.get(
+        "/v1/jobs/{task_id}/candidates", tags=["candidates"], response_model=schemas.CandidatePage
+    )
     def list_candidates(
         task_id: str,
         user: User,
@@ -214,19 +243,27 @@ def create_app(container: ApiServices) -> FastAPI:
             "next_cursor": None if next_offset is None else encode_cursor([next_offset]),
         }
 
-    @app.get("/v1/jobs/{task_id}/document", tags=["candidates"])
+    @app.get("/v1/jobs/{task_id}/document", tags=["candidates"], response_model=schemas.Document)
     def document(task_id: str, user: User) -> Json:
         return queries.document(user.actor, task_id)
 
     # -- candidates and reviews ---------------------------------------------------------
 
-    @app.get("/v1/candidates/{candidate_id}", tags=["candidates"])
+    @app.get(
+        "/v1/candidates/{candidate_id}",
+        tags=["candidates"],
+        response_model=schemas.CandidateEnvelope,
+    )
     def get_candidate(candidate_id: str, user: User, response: Response) -> Json:
         result = queries.candidate(user.actor, candidate_id)
         response.headers["ETag"] = f'"{result["candidate"]["revision"]}"'
         return result
 
-    @app.patch("/v1/candidates/{candidate_id}", tags=["candidates"])
+    @app.patch(
+        "/v1/candidates/{candidate_id}",
+        tags=["candidates"],
+        response_model=schemas.CandidateEnvelope,
+    )
     def patch_candidate(
         candidate_id: str,
         body: CandidatePatch,
@@ -258,26 +295,34 @@ def create_app(container: ApiServices) -> FastAPI:
         response.headers["ETag"] = f'"{result["candidate"]["revision"]}"'
         return result
 
-    @app.post("/v1/candidates/{candidate_id}/resolutions", tags=["candidates"])
+    @app.post(
+        "/v1/candidates/{candidate_id}/resolutions",
+        tags=["candidates"],
+        response_model=schemas.CandidateEnvelope,
+    )
     def resolve(candidate_id: str, body: ResolutionRequest, user: User) -> Json:
         container.reviews.resolve(
             user.actor, candidate_id, body.revision, body.rule_id, body.resolution
         )
         return queries.candidate(user.actor, candidate_id)
 
-    @app.post("/v1/candidates/{candidate_id}/archive", tags=["candidates"])
+    @app.post(
+        "/v1/candidates/{candidate_id}/archive",
+        tags=["candidates"],
+        response_model=schemas.CandidateEnvelope,
+    )
     def archive(candidate_id: str, body: RevisionRequest, user: User) -> Json:
         container.reviews.archive(user.actor, candidate_id, body.revision)
         return queries.candidate(user.actor, candidate_id)
 
-    @app.post("/v1/reviews", tags=["candidates"])
+    @app.post("/v1/reviews", tags=["candidates"], response_model=schemas.CandidateEnvelope)
     def review(body: ReviewRequest, user: User) -> Json:
         container.reviews.decide(
             user.actor, body.candidate_id, body.revision, approve=body.decision == "approved"
         )
         return queries.candidate(user.actor, body.candidate_id)
 
-    @app.post("/v1/commits", tags=["records"])
+    @app.post("/v1/commits", tags=["records"], response_model=schemas.CommitResponse)
     def commit(
         body: CommitRequest, user: User, idempotency_key: Annotated[str | None, Header()] = None
     ) -> Json:
@@ -305,7 +350,7 @@ def create_app(container: ApiServices) -> FastAPI:
 
     # -- records ----------------------------------------------------------------------
 
-    @app.get("/v1/records", tags=["records"])
+    @app.get("/v1/records", tags=["records"], response_model=schemas.RecordPage)
     def list_records(
         user: User,
         project_id: str | None = None,
@@ -328,7 +373,7 @@ def create_app(container: ApiServices) -> FastAPI:
         )
         return {"items": items, "next_cursor": next_cursor}
 
-    @app.get("/v1/records/{record_id}", tags=["records"])
+    @app.get("/v1/records/{record_id}", tags=["records"], response_model=schemas.RecordDetail)
     def get_record(record_id: str, user: User) -> Json:
         record = queries.record(user.actor, record_id)
         record.pop("tenant_id", None)

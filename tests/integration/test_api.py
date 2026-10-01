@@ -99,6 +99,7 @@ def test_full_fasta_journey_over_http(api: Api) -> None:
 
     task_id = api.upload("batch.fasta", b">A1 heavy\nmktayiakqr\n>A2\nMKTAYIAKQW\n")
     job = api.call("GET", f"/v1/jobs/{task_id}").json()
+    assert "tenant_id" not in job
     assert (job["status"], job["candidate_counts"]) == ("REVIEW_READY", {"NEEDS_REVIEW": 2})
     listed = api.call("GET", "/v1/jobs", params={"project_id": api.project}).json()
     assert [item["task_id"] for item in listed["items"]] == [task_id]
@@ -168,7 +169,7 @@ def test_identity_and_request_hygiene(api: Api) -> None:
     assert_error(api.call("GET", "/v1/me", user="mallory"), 403, "user_not_provisioned")
     no_csrf = api.client.post("/v1/uploads", headers={"X-Dev-User": "alice"}, json={})
     assert_error(no_csrf, 403, "csrf_header_missing")
-    assert api.call("GET", "/v1/health", user=None).json() == {"status": "ok"}
+    assert api.call("GET", "/v1/health", user=None).json() == {"status": "ok", "dev_login": True}
 
 
 def test_error_codes_follow_the_contract(api: Api) -> None:

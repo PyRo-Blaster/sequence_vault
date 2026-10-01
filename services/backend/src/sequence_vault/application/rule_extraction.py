@@ -76,6 +76,24 @@ def _fasta_records(blocks: list[Json]) -> list[Json]:
     return records
 
 
+_LABEL = re.compile(r"[:\uff1a]")
+
+
+def _heading_name(line: str) -> tuple[str, int]:
+    """Name and its code-point offset in a heading line. A label before an ASCII or
+    full-width colon is dropped ("Name: RSPO3" names RSPO3); with nothing after the colon,
+    the text before it is the name ("Light chain:")."""
+    label = _LABEL.search(line)
+    if label is not None:
+        after = line[label.end() :]
+        if after.strip():
+            value = after.strip()
+            return value, label.end() + after.index(value)
+        line = line[: label.start()]
+    value = line.strip()
+    return value, (line.index(value) if value else 0)
+
+
 def _paragraph_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
     records = []
     for block in blocks:
@@ -87,8 +105,7 @@ def _paragraph_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
             continue
         first, _, rest = raw.partition("\n")
         if rest and is_sequence_like(rest) and not is_sequence_like(first) and len(first) <= 120:
-            heading = first.strip().rstrip(":\uff1a")
-            start = first.index(heading) if heading else 0
+            heading, start = _heading_name(first)
             names = (
                 [
                     {

@@ -1,0 +1,28 @@
+body { margin: 0; background: #f4f6f7; }
+.sv-header { display: flex; align-items: center; gap: 16px; padding-inline: 24px; }
+.sv-brand { color: #fff !important; font-size: 18px; font-weight: 600; white-space: nowrap; }
+.sv-content { padding: 24px; max-width: 1600px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+.sv-mono, .sv-sequence, .sv-block-text, .sv-diff { font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+.sv-sequence { font-size: 13px; line-height: 1.7; overflow-x: auto; background: #fafbfb; border: 1px solid #e3e8ea; border-radius: 6px; padding: 8px 12px; }
+.sv-sequence-line { white-space: nowrap; }
+.sv-sequence-position { display: inline-block; width: 4.5em; color: #8a979e; text-align: right; margin-right: 12px; user-select: none; }
+.sv-sequence-block { margin-right: 0.8em; letter-spacing: 0.02em; }
+.sv-sequence-length { display: block; font-size: 12px; margin-top: 4px; }
+.sv-residue-extended { background: #fff1b8; padding: 0; }
+.sv-residue-invalid { background: #ffccc7; padding: 0; outline: 1px solid #ff4d4f; }
+.sv-evidence { max-height: calc(100vh - 220px); overflow: auto; }
+.sv-block { border-left: 3px solid transparent; padding: 6px 8px; margin-bottom: 8px; }
+.sv-block-focus { border-left-color: #0d6b73; background: #eef7f7; }
+.sv-block-meta { display: flex; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 4px; }
+.sv-block-text { margin: 0; white-space: pre-wrap; word-break: break-all; font-size: 13px; }
+.sv-mark-sequence { background: #d6efe9; }
+.sv-mark-name { background: #d6e4ff; }
+.sv-mark-issue { background: #ffd8bf; outline: 1px solid #fa8c16; }
+.sv-issues { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 10px; }
+.sv-issue-message { color: #55636e; margin: 4px 0; font-size: 13px; }
+.sv-diff { white-space: pre-wrap; word-break: break-all; background: #fafbfb; padding: 8px; border-radius: 6px; }
+.sv-diff ins { background: #d9f7be; text-decoration: none; }
+.sv-diff del { background: #ffccc7; }
+.sv-sticky { position: sticky; top: 16px; }
+.sv-upload-results { margin: 12px 0 0; padding-left: 20px; }
+@media (max-width: 992px) { .sv-sticky { position: static; } }
