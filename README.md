@@ -33,17 +33,16 @@ sequence_vault/
 
 Every reserved directory has a README or Python package marker explaining its purpose. See [architecture and dependency rules](docs/architecture.md), [workflow diagrams](docs/workflow.md), the [implementation plan and stack](docs/implementation-plan.md), [development phases](docs/roadmap.md), and [contribution guidance](CONTRIBUTING.md).
 
-## Check the scaffold
+## Check the repository
 
-Requires Python 3.12 or newer. The checks use the pinned JSON Schema validator in `scripts/requirements.txt`; install it into a virtual environment first.
+Requires [uv](https://docs.astral.sh/uv/) 0.8.17. uv installs the Python version in `.python-version` (3.12) when it is missing.
 
 ```sh
-python3 -m venv .venv && . .venv/bin/activate
-make check-deps
-make check
+make setup   # create .venv from uv.lock
+make check   # scaffold checks, lint, import contracts, types and unit tests
 ```
 
-This validates the synthetic examples against the draft JSON Schemas, checks that the schemas reject states the design forbids, and checks cross-example span consistency, QC registry invariants, Python syntax, required architecture paths, and whitespace errors. It does not validate product behavior or satisfy the design's acceptance criteria. CI runs the same command. No application server is available at this stage.
+`make check` validates the synthetic examples against the draft JSON Schemas, checks that the schemas reject states the design forbids, runs ruff, mypy and the import-linter layer contracts, and runs the backend unit tests. CI runs the same commands. Backend unit tests live in `tests/unit`; no application server exists yet.
 
 ## Design constraints
 

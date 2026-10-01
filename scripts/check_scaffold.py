@@ -26,6 +26,7 @@ REQUIRED = (
 
 def read_json(path: Path) -> dict:
     """Reject duplicate keys rather than silently keeping the final value."""
+
     def unique_object(pairs):
         result = {}
         for key, value in pairs:
@@ -66,8 +67,9 @@ def schema_validators() -> dict[str, Draft202012Validator]:
     )
     for schema in schemas.values():
         Draft202012Validator.check_schema(schema)
-    return {name: Draft202012Validator(schema, registry=registry)
-            for name, schema in schemas.items()}
+    return {
+        name: Draft202012Validator(schema, registry=registry) for name, schema in schemas.items()
+    }
 
 
 def expect_invalid(validator: Draft202012Validator, instance: dict, reason: str) -> None:
@@ -93,8 +95,11 @@ def check_boundaries(validators: dict, document: dict, extraction: dict) -> None
     expect_invalid(result, changed, "a FASTA header name without evidence")
     changed = copy.deepcopy(document)
     changed["blocks"][0]["location"] = {"kind": "spreadsheet_cell", "worksheet": "Sheet1"}
-    expect_invalid(validators["document-ir.schema.json"], changed,
-                   "a spreadsheet location without a cell address")
+    expect_invalid(
+        validators["document-ir.schema.json"],
+        changed,
+        "a spreadsheet location without a cell address",
+    )
 
 
 def check_examples(validators: dict, registry: dict) -> None:
@@ -121,7 +126,7 @@ def check_examples(validators: dict, registry: dict) -> None:
     def span_text(span: dict) -> str:
         text = blocks[span["block_id"]]["raw_text"]
         assert 0 <= span["start"] < span["end"] <= len(text), f"Span out of range: {span}"
-        return text[span["start"]:span["end"]]
+        return text[span["start"] : span["end"]]
 
     record = extraction["records"][candidate["extraction_record_index"]]
     assert candidate["extracted_names"] == record["names"]
@@ -172,8 +177,10 @@ def main() -> None:
         assert not {"ignore", "acknowledge", "override"} & set(rule["allowed_resolutions"])
     validators = schema_validators()
     check_examples(validators, registry)
-    print(f"Scaffold checks passed: {len(json_paths)} JSON files, "
-          f"{len(python_paths)} Python files, schema validation and synthetic examples.")
+    print(
+        f"Scaffold checks passed: {len(json_paths)} JSON files, "
+        f"{len(python_paths)} Python files, schema validation and synthetic examples."
+    )
     print("Product behavior and backend cross-field validation remain pending implementation.")
 
 
