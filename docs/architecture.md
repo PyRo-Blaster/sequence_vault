@@ -1,6 +1,6 @@
 # Architecture and implementation boundaries
 
-The original specification is in `design/Protein_Sequence_App_Design_v1.0_EN.md`. This document maps its sections to code ownership; it does not replace its contracts.
+The original specification is in `design/Protein_Sequence_App_Design_v1.0_EN.md`. This document maps its sections to code ownership; it does not replace its contracts. Step-by-step diagrams are in [workflow.md](workflow.md).
 
 ## Runtime flow
 
@@ -8,9 +8,10 @@ The original specification is in `design/Protein_Sequence_App_Design_v1.0_EN.md`
 flowchart LR
   Web[Chinese TypeScript UI] --> API[Python API]
   API --> Isolated[Isolated source storage]
-  API --> Queue[Existing reliable queue]
+  API --> Outbox[Task and outbox rows]
+  Outbox --> Queue[Existing reliable queue]
   Queue --> Workers[Python processing workers]
-  Workers --> Parser[Parser registry]
+  Workers --> Parser[Sandboxed parser process]
   Parser --> IR[Immutable DocumentIR]
   IR --> Extraction[Rules and approved model gateway]
   Extraction --> QC[Deterministic reconstruction and QC]
@@ -20,7 +21,7 @@ flowchart LR
   Commit --> Published[Published records and versions]
 ```
 
-API and worker processes run from the same backend package. They can scale independently without separate service repositories. Only the commit application service may write approved published versions. The model gateway receives authorized blocks and returns structured locations; it has no database, shell, network-search, or commit capability.
+API and worker processes run from the same backend package. They can scale independently without separate service repositories. Only the commit application service may write approved published versions. The model gateway receives authorized blocks and returns structured locations and observations; it has no database, shell, network-search, or commit capability, and it never assigns candidate IDs or QC severities ([ADR 0002](decisions/0002-extraction-contract-boundaries.md)). Parsers run in a credential-free sandboxed process, and task creation uses a transactional outbox ([ADR 0003](decisions/0003-parser-isolation-and-task-enqueue.md)).
 
 ## Dependency direction
 
@@ -56,4 +57,4 @@ Candidate edits increment revision and invalidate approval. Issue resolutions an
 
 ## Decisions remaining before implementation/launch
 
-Choose frontend and Python frameworks, enterprise sign-in, task queue, dependency managers and lockfiles, approved model deployment, parser libraries, and deployment topology. Confirm retention, extended-residue policy, text PDF release scope, and capacity with the data owner. OCR and automatic publication remain later phases with separate acceptance gates.
+Choose frontend and Python frameworks, enterprise sign-in, task queue, dependency managers and lockfiles, approved model deployment, parser libraries, parser sandbox runtime, and deployment topology. Confirm retention, extended-residue policy, full-width and mixed-case normalization ([ADR 0004](decisions/0004-normalization-questions-for-data-owner.md)), text PDF release scope, and capacity with the data owner. OCR and automatic publication remain later phases with separate acceptance gates.

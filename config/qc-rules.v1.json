@@ -7,67 +7,113 @@
       "rule_id": "QC01",
       "severity": "BLOCK",
       "description": "Empty sequence or out-of-range reference",
-      "resolution": "Repair evidence or await content."
+      "resolution": "Repair evidence or await content.",
+      "allowed_resolutions": [
+        "correct_evidence_reference",
+        "mark_pending_content"
+      ]
     },
     {
       "rule_id": "QC02",
       "severity": "INFO",
       "description": "Whitespace, line breaks, letter case",
-      "resolution": "Normalize deterministically and log each transformation."
+      "resolution": "Normalize deterministically and log each transformation.",
+      "allowed_resolutions": [
+        "automatic_normalization"
+      ]
     },
     {
       "rule_id": "QC03",
       "severity": "BLOCK",
       "description": "Digits, invalid symbols, Unicode look-alikes",
-      "resolution": "Locate characters; never delete indiscriminately. Proven position numbering requires a dedicated rule."
+      "resolution": "Locate characters; never delete indiscriminately. Proven position numbering requires a dedicated rule.",
+      "allowed_resolutions": [
+        "correct_input",
+        "apply_position_numbering_rule",
+        "provide_source"
+      ]
     },
     {
       "rule_id": "QC04",
       "severity": "REVIEW",
       "description": "Extended residues B Z J X U O",
-      "resolution": "Confirm semantics; retain values without substitution."
+      "resolution": "Confirm semantics; retain values without substitution.",
+      "allowed_resolutions": [
+        "confirm_residue_semantics"
+      ]
     },
     {
       "rule_id": "QC05",
       "severity": "BLOCK",
       "description": "Ellipses, truncation, omitted blocks",
-      "resolution": "Re-extract, obtain source, or explicitly register an evidence-supported fragment."
+      "resolution": "Re-extract, obtain source, or explicitly register an evidence-supported fragment.",
+      "allowed_resolutions": [
+        "re_extract",
+        "provide_source",
+        "register_fragment"
+      ]
     },
     {
       "rule_id": "QC06",
       "severity": "REVIEW",
       "description": "Asterisks, gaps, numbering",
-      "resolution": "Apply only an explicit evidence-based transformation with confirmation and audit."
+      "resolution": "Apply only an explicit evidence-based transformation with confirmation and audit.",
+      "allowed_resolutions": [
+        "apply_explicit_transformation",
+        "correct_input"
+      ]
     },
     {
       "rule_id": "QC07",
       "severity": "REVIEW",
       "description": "Name conflict or unclear mapping",
-      "resolution": "Select, split or reassociate using evidence."
+      "resolution": "Select, split or reassociate using evidence.",
+      "allowed_resolutions": [
+        "select_name",
+        "split_candidate",
+        "reassociate_name"
+      ]
     },
     {
       "rule_id": "QC08",
       "severity": "REVIEW",
       "description": "OCR, tracked changes, unsupported content",
-      "resolution": "Resolve source and coverage risks."
+      "resolution": "Resolve source and coverage risks.",
+      "allowed_resolutions": [
+        "confirm_source_reviewed",
+        "reparse_with_selected_view",
+        "correct_input"
+      ]
     },
     {
       "rule_id": "QC09",
       "severity": "REVIEW",
       "description": "Same name, different sequence",
-      "resolution": "Explicit new version or rename; never overwrite."
+      "resolution": "Explicit new version or rename; never overwrite.",
+      "allowed_resolutions": [
+        "create_new_version",
+        "rename",
+        "cancel"
+      ]
     },
     {
       "rule_id": "QC10",
       "severity": "INFO",
       "description": "Identical sequence exists",
-      "resolution": "Reuse the entity; separately decide the application record."
+      "resolution": "Reuse the entity; separately decide the application record.",
+      "allowed_resolutions": [
+        "reuse_entity"
+      ]
     },
     {
       "rule_id": "QC11",
       "severity": "REVIEW",
       "description": "Uncertain protein classification",
-      "resolution": "Confirm type; nucleic acids cannot enter published release-one data."
+      "resolution": "Confirm type; nucleic acids cannot enter published release-one data.",
+      "allowed_resolutions": [
+        "confirm_molecule_type",
+        "reject"
+      ]
     }
   ]
 }

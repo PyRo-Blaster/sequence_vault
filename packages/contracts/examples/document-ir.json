@@ -4,6 +4,10 @@
   "run_id": "run_synthetic",
   "source_sha256": "244a4147fd48edb911104ceb20797818d99296ee8b7718d1e57914a801e8b438",
   "parser_version": "synthetic-example-1",
+  "source_encoding": "utf-8",
+  "parse_options": {
+    "tracked_changes_view": "not_applicable"
+  },
   "offset_unit": "unicode_codepoint",
   "blocks": [
     {
@@ -11,7 +15,9 @@
       "type": "fasta_header",
       "raw_text": "synthetic_protein",
       "location": {
-        "kind": "text"
+        "kind": "text",
+        "line_start": 1,
+        "line_end": 1
       },
       "extraction_method": "text_parser"
     },
@@ -20,7 +26,9 @@
       "type": "sequence",
       "raw_text": "ACDEFGHIKLMNPQRSTVWY",
       "location": {
-        "kind": "text"
+        "kind": "text",
+        "line_start": 2,
+        "line_end": 2
       },
       "extraction_method": "text_parser"
     }

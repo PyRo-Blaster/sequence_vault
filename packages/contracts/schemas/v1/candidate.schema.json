@@ -10,23 +10,44 @@
     },
     "candidate_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Assigned by the server, never by the model."
     },
     "run_id": {
       "type": "string",
       "minLength": 1
+    },
+    "extraction_record_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based index into the run's extraction result records; absent for candidates created by review splits or legacy import."
     },
     "revision": {
       "type": "integer",
       "minimum": 1
     },
     "name": {
-      "$ref": "extraction-result.schema.json#/$defs/name"
+      "description": "The current name. Null until a name is selected or entered.",
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/name"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "extracted_names": {
+      "type": "array",
+      "description": "Every name the run associated with this record, retained unchanged when the current name is edited.",
+      "items": {
+        "$ref": "common.schema.json#/$defs/name"
+      }
     },
     "sequence_spans": {
       "type": "array",
       "items": {
-        "$ref": "extraction-result.schema.json#/$defs/sequence_span"
+        "$ref": "common.schema.json#/$defs/sequence_span"
       }
     },
     "raw_text": {
@@ -35,13 +56,8 @@
     "normalized_sequence": {
       "type": "string"
     },
-    "type": {
-      "type": "string",
-      "enum": [
-        "protein",
-        "nucleic_acid",
-        "uncertain"
-      ]
+    "molecule_type": {
+      "$ref": "common.schema.json#/$defs/molecule_type"
     },
     "completeness": {
       "type": "string",
@@ -53,6 +69,7 @@
     },
     "status": {
       "type": "string",
+      "description": "SUPERSEDED marks candidates of an older extraction run; ARCHIVED is an explicit terminal decision that lets a task complete.",
       "enum": [
         "DRAFT",
         "NEEDS_REVIEW",
@@ -60,7 +77,9 @@
         "APPROVED",
         "COMMITTED",
         "REJECTED",
-        "PENDING_CONTENT"
+        "PENDING_CONTENT",
+        "ARCHIVED",
+        "SUPERSEDED"
       ]
     },
     "origin": {
@@ -91,6 +110,7 @@
           },
           "positions": {
             "type": "array",
+            "description": "Zero-based code-point positions in raw_text.",
             "items": {
               "type": "integer",
               "minimum": 0
@@ -108,7 +128,7 @@
     "issues": {
       "type": "array",
       "items": {
-        "$ref": "extraction-result.schema.json#/$defs/issue"
+        "$ref": "common.schema.json#/$defs/issue"
       }
     },
     "qc_version": {
@@ -122,10 +142,11 @@
     "run_id",
     "revision",
     "name",
+    "extracted_names",
     "sequence_spans",
     "raw_text",
     "normalized_sequence",
-    "type",
+    "molecule_type",
     "completeness",
     "status",
     "origin",

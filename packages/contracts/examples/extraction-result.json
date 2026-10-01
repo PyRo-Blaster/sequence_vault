@@ -4,12 +4,17 @@
   "run_id": "run_synthetic",
   "records": [
     {
-      "candidate_id": "candidate_synthetic",
-      "name": {
-        "value": "synthetic_protein",
-        "source": "fasta_header",
-        "evidence": "h1"
-      },
+      "names": [
+        {
+          "value": "synthetic_protein",
+          "source": "fasta_header",
+          "evidence": {
+            "block_id": "h1",
+            "start": 0,
+            "end": 17
+          }
+        }
+      ],
       "molecule_type": "protein",
       "sequence_spans": [
         {
@@ -20,7 +25,7 @@
         }
       ],
       "association_status": "unambiguous",
-      "issues": []
+      "observations": []
     }
   ],
   "coverage": {

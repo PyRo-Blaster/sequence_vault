@@ -3,131 +3,7 @@
   "type": "object",
   "additionalProperties": false,
   "title": "Structured extraction result v1 (draft)",
-  "$defs": {
-    "sequence_span": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "block_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "start": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "end": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "order": {
-          "type": "integer",
-          "minimum": 1
-        }
-      },
-      "required": [
-        "block_id",
-        "start",
-        "end",
-        "order"
-      ]
-    },
-    "issue": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "rule_id": {
-          "type": "string",
-          "pattern": "^QC(0[1-9]|1[01])$"
-        },
-        "severity": {
-          "type": "string",
-          "enum": [
-            "INFO",
-            "REVIEW",
-            "BLOCK"
-          ]
-        },
-        "message": {
-          "type": "string",
-          "minLength": 1
-        },
-        "block_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "start": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "end": {
-          "type": "integer",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "rule_id",
-        "severity",
-        "message"
-      ]
-    },
-    "name": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "value": {
-          "type": "string",
-          "minLength": 1
-        },
-        "source": {
-          "type": "string",
-          "enum": [
-            "fasta_header",
-            "table_cell",
-            "heading",
-            "filename",
-            "manual"
-          ]
-        },
-        "evidence": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "value",
-        "source",
-        "evidence"
-      ]
-    },
-    "coverage": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "unresolved_blocks": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "warnings": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      },
-      "required": [
-        "unresolved_blocks",
-        "truncated"
-      ]
-    }
-  },
+  "description": "Rules and model output: evidence locations, name associations and observations only. Candidate IDs, QC issues and severities are assigned server-side after this result is validated.",
   "properties": {
     "schema_version": {
       "const": "1.0"
@@ -146,25 +22,21 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "candidate_id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "name": {
-            "$ref": "#/$defs/name"
+          "names": {
+            "type": "array",
+            "description": "Every name associated with this record. Empty when none was found; more than one when sources conflict.",
+            "items": {
+              "$ref": "common.schema.json#/$defs/name"
+            }
           },
           "molecule_type": {
-            "type": "string",
-            "enum": [
-              "protein",
-              "nucleic_acid",
-              "uncertain"
-            ]
+            "$ref": "common.schema.json#/$defs/molecule_type",
+            "description": "A hint only. Deterministic QC11 decides classification."
           },
           "sequence_spans": {
             "type": "array",
             "items": {
-              "$ref": "#/$defs/sequence_span"
+              "$ref": "common.schema.json#/$defs/sequence_span"
             }
           },
           "association_status": {
@@ -175,25 +47,24 @@
               "conflicting"
             ]
           },
-          "issues": {
+          "observations": {
             "type": "array",
             "items": {
-              "$ref": "#/$defs/issue"
+              "$ref": "common.schema.json#/$defs/observation"
             }
           }
         },
         "required": [
-          "candidate_id",
-          "name",
+          "names",
           "molecule_type",
           "sequence_spans",
           "association_status",
-          "issues"
+          "observations"
         ]
       }
     },
     "coverage": {
-      "$ref": "#/$defs/coverage"
+      "$ref": "common.schema.json#/$defs/coverage"
     }
   },
   "required": [
