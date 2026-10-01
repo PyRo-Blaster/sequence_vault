@@ -164,4 +164,10 @@ def _context_issues(registry: QcRegistry, context: ExtractionContext) -> list[Is
         issues.append(
             registry.issue("QC08", "Parts of the source were not fully read; check the original.")
         )
+    elif "cross_block_join" in kinds:
+        issues.append(
+            registry.issue(
+                "QC08", "The sequence was joined from several blocks; confirm continuity."
+            )
+        )
     return issues

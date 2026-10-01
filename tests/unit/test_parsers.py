@@ -64,8 +64,13 @@ def test_sandbox_parses_in_a_separate_process() -> None:
 
 def test_sandbox_reports_parser_failures_and_limits() -> None:
     with pytest.raises(ParseFailed) as unsupported:
-        SandboxedParser().parse("docx", b"x", file_id="f", run_id="r", parse_options=OPTIONS)
+        SandboxedParser().parse("png", b"x", file_id="f", run_id="r", parse_options=OPTIONS)
     assert unsupported.value.code == "unsupported_format"
+    with pytest.raises(ParseFailed) as corrupt:
+        SandboxedParser().parse(
+            "docx", b"PK\x03\x04", file_id="f", run_id="r", parse_options=OPTIONS
+        )
+    assert corrupt.value.code == "corrupt_document"
     with pytest.raises(ParseFailed) as limited:
         SandboxedParser(memory_mb=40).parse(
             "fasta", b">A\n" + b"M" * 30_000_000, file_id="f", run_id="r", parse_options=OPTIONS

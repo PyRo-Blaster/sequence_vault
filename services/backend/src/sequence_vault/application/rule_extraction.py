@@ -45,10 +45,6 @@ def _record(names: list[Json], spans: list[Json], status: str) -> Json:
     }
 
 
-def _whole(block: Json) -> Json:
-    return {"block_id": block["block_id"], "start": 0, "end": len(block["raw_text"]), "order": 1}
-
-
 def _fasta_name(block: Json) -> Json | None:
     token = block["raw_text"].split(maxsplit=1)[0] if block["raw_text"].strip() else ""
     if not token:
@@ -69,7 +65,7 @@ def _fasta_records(blocks: list[Json]) -> list[Json]:
             continue
         name = _fasta_name(block)
         body = by_id.get("s" + block["block_id"][1:])
-        spans = [_whole(body)] if body is not None else []
+        spans = [_whole_span(body)] if body is not None else []
         records.append(
             _record([name] if name else [], spans, "unambiguous" if name else "ambiguous")
         )
@@ -94,42 +90,244 @@ def _heading_name(line: str) -> tuple[str, int]:
     return value, (line.index(value) if value else 0)
 
 
+def _whole_span(block: Json, order: int = 1) -> Json:
+    return {
+        "block_id": block["block_id"],
+        "start": 0,
+        "end": len(block["raw_text"]),
+        "order": order,
+    }
+
+
+def _evidence(block: Json) -> Json:
+    return {"block_id": block["block_id"], "start": 0, "end": len(block["raw_text"])}
+
+
+def _adjacent(first: Json, second: Json) -> bool:
+    """Consecutive Word paragraphs: structural continuity for joining spans."""
+    a, b = first["location"], second["location"]
+    return bool(
+        a["kind"] == b["kind"] == "docx_paragraph"
+        and b["paragraph_index"] == a["paragraph_index"] + 1
+    )
+
+
+def _is_heading(block: Json) -> bool:
+    raw = block["raw_text"]
+    return "\n" not in raw.strip() and len(raw) <= 120 and not is_sequence_like(raw)
+
+
+def _heading(block: Json, line: str, offset: int = 0) -> list[Json]:
+    value, start = _heading_name(line)
+    if not value:
+        return []
+    begin = offset + start
+    return [
+        {
+            "value": value,
+            "source": "heading",
+            "evidence": {"block_id": block["block_id"], "start": begin, "end": begin + len(value)},
+        }
+    ]
+
+
 def _paragraph_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
-    records = []
-    for block in blocks:
-        if block["type"] not in {"paragraph", "text"}:
-            continue
+    records: list[Json] = []
+    index = 0
+    while index < len(blocks):
+        block = blocks[index]
         raw = block["raw_text"]
         if is_sequence_like(raw):
-            records.append(_record([], [_whole(block)], "ambiguous"))
+            group = [block]
+            while (
+                index + len(group) < len(blocks)
+                and _adjacent(group[-1], blocks[index + len(group)])
+                and is_sequence_like(blocks[index + len(group)]["raw_text"])
+            ):
+                group.append(blocks[index + len(group)])
+            previous = blocks[index - 1] if index else None
+            names = (
+                _heading(previous, previous["raw_text"])
+                if previous is not None and _adjacent(previous, block) and _is_heading(previous)
+                else []
+            )
+            record = _record(
+                names,
+                [_whole_span(b, order) for order, b in enumerate(group, start=1)],
+                "unambiguous" if names else "ambiguous",
+            )
+            if len(group) > 1:
+                record["observations"].append(
+                    {
+                        "kind": "cross_block_join",
+                        "message": f"Joined {len(group)} consecutive paragraphs into one sequence.",
+                        "evidence": [_evidence(b) for b in group],
+                    }
+                )
+            records.append(record)
+            index += len(group)
             continue
         first, _, rest = raw.partition("\n")
         if rest and is_sequence_like(rest) and not is_sequence_like(first) and len(first) <= 120:
-            heading, start = _heading_name(first)
-            names = (
-                [
-                    {
-                        "value": heading,
-                        "source": "heading",
-                        "evidence": {
-                            "block_id": block["block_id"],
-                            "start": start,
-                            "end": start + len(heading),
-                        },
-                    }
-                ]
-                if heading
-                else []
-            )
             span = {
                 "block_id": block["block_id"],
                 "start": len(first) + 1,
                 "end": len(raw),
                 "order": 1,
             }
+            names = _heading(block, first)
             records.append(_record(names, [span], "unambiguous" if names else "ambiguous"))
         elif _RESIDUE_RUN.search(raw):
             unresolved.append(block["block_id"])
+        index += 1
+    return records
+
+
+_NAME_KEYS = (
+    "名称",
+    "名字",
+    "编号",
+    "克隆",
+    "样品",
+    "抗体",
+    "蛋白",
+    "name",
+    "id",
+    "clone",
+    "sample",
+    "antibody",
+    "construct",
+)
+_SEQUENCE_KEYS = ("序列", "sequence", "seq")
+_CHAIN_KEYS = ("重链", "轻链", "heavy", "light", "vh", "vl", "hc", "lc")
+
+
+def _matches(text: str, keys: tuple[str, ...]) -> bool:
+    value = text.strip().casefold()
+    for key in keys:
+        if key.isascii():
+            if re.search(rf"(?<![a-z]){re.escape(key)}(?![a-z])", value):
+                return True
+        elif key in value:
+            return True
+    return False
+
+
+def _table_key(block: Json) -> tuple[str, str]:
+    location = block["location"]
+    if location["kind"] == "docx_table_cell":
+        return ("docx", str(location["table_index"]))
+    return ("sheet", str(location["worksheet"]))
+
+
+def _table_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
+    tables: dict[tuple[str, str], dict[tuple[int, int], Json]] = {}
+    for block in blocks:
+        location = block["location"]
+        tables.setdefault(_table_key(block), {})[(location["row"], location["column"])] = block
+    records: list[Json] = []
+    for grid in tables.values():
+        rows = sorted({row for row, _ in grid})
+        header_row = next(
+            (
+                row
+                for row in rows
+                if any(
+                    _matches(cell["raw_text"], _SEQUENCE_KEYS + _CHAIN_KEYS)
+                    and not is_sequence_like(cell["raw_text"])
+                    for (r, _), cell in grid.items()
+                    if r == row
+                )
+            ),
+            None,
+        )
+        if header_row is None:
+            records += _headerless_rows(grid, rows)
+            continue
+        header = {col: cell for (row, col), cell in grid.items() if row == header_row}
+        sequence_columns = sorted(
+            col
+            for col, cell in header.items()
+            if _matches(cell["raw_text"], _SEQUENCE_KEYS + _CHAIN_KEYS)
+        )
+        name_column = next(
+            (
+                col
+                for col, cell in sorted(header.items())
+                if col not in sequence_columns and _matches(cell["raw_text"], _NAME_KEYS)
+            ),
+            next((col for col in sorted(header) if col not in sequence_columns), None),
+        )
+        for row in rows:
+            if row <= header_row:
+                continue
+            name_cell = grid.get((row, name_column)) if name_column is not None else None
+            names = (
+                [
+                    {
+                        "value": name_cell["raw_text"].strip(),
+                        "source": "table_cell",
+                        "evidence": _name_evidence(name_cell),
+                    }
+                ]
+                if name_cell is not None and not is_sequence_like(name_cell["raw_text"])
+                else []
+            )
+            for col in sequence_columns:
+                cell = grid.get((row, col))
+                if cell is not None and is_sequence_like(cell["raw_text"]):
+                    record = _record(
+                        list(names),
+                        [_whole_span(cell)],
+                        "unambiguous" if names and len(sequence_columns) == 1 else "ambiguous",
+                    )
+                    if len(sequence_columns) > 1:
+                        record["observations"].append(
+                            {
+                                "kind": "unclear_mapping",
+                                "message": f"Chain column '{header[col]['raw_text'].strip()}': "
+                                "add the chain label to the name.",
+                                "evidence": [_evidence(header[col])],
+                            }
+                        )
+                    records.append(record)
+                elif cell is None and names and len(sequence_columns) == 1:
+                    records.append(_record(list(names), [], "unambiguous"))
+                elif cell is not None and _RESIDUE_RUN.search(cell["raw_text"]):
+                    unresolved.append(cell["block_id"])
+    return records
+
+
+def _name_evidence(cell: Json) -> Json:
+    raw = cell["raw_text"]
+    value = raw.strip()
+    start = raw.index(value)
+    return {"block_id": cell["block_id"], "start": start, "end": start + len(value)}
+
+
+def _headerless_rows(grid: dict[tuple[int, int], Json], rows: list[int]) -> list[Json]:
+    """Without a header, pair each sequence cell with the text cells of its own row."""
+    records: list[Json] = []
+    for row in rows:
+        cells = sorted(((col, cell) for (r, col), cell in grid.items() if r == row))
+        texts = [cell for _, cell in cells if not is_sequence_like(cell["raw_text"])]
+        for col, cell in cells:
+            if not is_sequence_like(cell["raw_text"]):
+                continue
+            left = [c for c in texts if c["location"]["column"] < col]
+            names = (
+                [
+                    {
+                        "value": left[-1]["raw_text"].strip(),
+                        "source": "table_cell",
+                        "evidence": _name_evidence(left[-1]),
+                    }
+                ]
+                if left
+                else []
+            )
+            status = "unambiguous" if len(texts) == 1 and names else "ambiguous"
+            records.append(_record(names, [_whole_span(cell)], status))
     return records
 
 
@@ -144,7 +342,11 @@ def _apply_filename(records: list[Json], file_name: str) -> None:
     if not record["names"]:
         record["names"] = [filename]
         record["association_status"] = "ambiguous"  # needs confirmation
-    elif all(name_key(n["value"]) != name_key(stem) for n in record["names"]):
+    elif any(c.isdigit() for c in stem) and all(
+        name_key(n["value"]) != name_key(stem) for n in record["names"]
+    ):
+        # Only a stem that looks like an identifier (lab names carry numbers) can conflict;
+        # generic names such as "results" or "table" are not names.
         record["names"].append(filename)
         record["association_status"] = "conflicting"
 
@@ -164,7 +366,9 @@ def extract(
         leftovers = [b for b in blocks if b["type"] == "text"]
         records += _paragraph_records(leftovers, unresolved)
     else:
-        records = _paragraph_records(blocks, unresolved)
+        prose = [b for b in blocks if b["type"] in {"paragraph", "text"}]
+        cells = [b for b in blocks if b["type"] == "table_cell"]
+        records = _paragraph_records(prose, unresolved) + _table_records(cells, unresolved)
     _apply_filename(records, file_name)
     if len(records) > max_candidates:
         raise LimitExceeded(

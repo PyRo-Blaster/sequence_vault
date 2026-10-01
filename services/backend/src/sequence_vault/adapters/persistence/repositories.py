@@ -200,6 +200,7 @@ class SqlTasks:
                 failure_code=row.task.failure_code,
                 current_run_id=row.current_run_id,
                 generation=row.generation,
+                parse_options=row.parse_options,
             ),
         )
 
@@ -215,6 +216,7 @@ class SqlTasks:
             file_id=row.file_id,
             current_run_id=row.current_run_id,
             generation=row.generation,
+            parse_options=row.parse_options,
         )
 
     def save(self, row: TaskRow) -> None:
@@ -226,6 +228,7 @@ class SqlTasks:
                 failure_code=row.task.failure_code,
                 current_run_id=row.current_run_id,
                 generation=row.generation,
+                parse_options=row.parse_options,
                 updated_at=func.now(),
             )
         )

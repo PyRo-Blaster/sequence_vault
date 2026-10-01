@@ -211,7 +211,7 @@ def test_error_codes_follow_the_contract(api: Api) -> None:
             "/v1/uploads",
             json={
                 "project_id": api.project,
-                "file_name": "scan.pdf",
+                "file_name": "scan.png",
                 "byte_count": 10,
                 "sha256": "a" * 64,
             },

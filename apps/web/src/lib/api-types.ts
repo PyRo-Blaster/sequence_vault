@@ -638,6 +638,11 @@ export interface components {
       /** Version No */
       version_no: number;
     };
+    /** ReprocessRequest */
+    ReprocessRequest: {
+      /** Tracked Changes View */
+      tracked_changes_view?: ("original" | "changes_accepted") | null;
+    };
     /** ResolutionRequest */
     ResolutionRequest: {
       /** Resolution */
@@ -2118,7 +2123,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ReprocessRequest"] | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       202: {

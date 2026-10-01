@@ -5,6 +5,7 @@ import io
 import time
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import Engine, select
@@ -50,7 +51,7 @@ class Env:
         assert row is not None
         return row.task.status.value, row.task.failure_code
 
-    def candidates(self, task_id: str) -> list[dict[str, object]]:
+    def candidates(self, task_id: str) -> list[dict[str, Any]]:
         with self.app.uow() as uow:
             task = uow.tasks.get(task_id)
             assert task is not None

@@ -16,7 +16,8 @@ from sequence_vault.application.contract_mapping import (
     parser_delimited,
     records_from_extraction,
 )
-from sequence_vault.application.errors import Conflict, LimitExceeded, NotFound
+from sequence_vault.application.errors import Conflict, InvalidRequest, LimitExceeded, NotFound
+from sequence_vault.application.model_assist import LocatorModel, assist, needs_model
 from sequence_vault.application.ports import (
     CandidateRow,
     DocumentParser,
@@ -60,6 +61,7 @@ class Pipeline:
         enabled_formats: frozenset[str],
         schema_errors: SchemaCheck,
         limits: PipelineLimits,
+        model: LocatorModel | None = None,
     ) -> None:
         self.uow_factory = uow_factory
         self.store = store
@@ -70,6 +72,7 @@ class Pipeline:
         self.enabled_formats = enabled_formats
         self.schema_errors = schema_errors
         self.limits = limits
+        self.model = model
 
     # -- dispatch -------------------------------------------------------------------------
 
@@ -179,7 +182,7 @@ class Pipeline:
         if row is None or source is None or source.detected_type is None:
             return
         run_id = f"run_{uuid.uuid4().hex}"
-        options: Json = {"tracked_changes_view": "not_applicable"}
+        options: Json = dict(row.parse_options)
         failure: str | None = None
         document: Json = {}
         try:
@@ -230,26 +233,47 @@ class Pipeline:
             source = uow.files.get(row.file_id)
             assert run is not None and source is not None
             document = self._document(uow, run)
-            failure: str | None = None
-            try:
-                result = extract(
-                    document,
-                    source.original_name,
-                    max_candidates=self.limits.max_candidates,
-                    max_residues=self.limits.max_residues,
-                )
-            except LimitExceeded as error:
-                failure, result = error.code, {}
-            if failure is None and self.schema_errors("extraction-result", result):
+        failure: str | None = None
+        result: Json = {}
+        model_version = prompt_version = None
+        try:
+            result = extract(
+                document,
+                source.original_name,
+                max_candidates=self.limits.max_candidates,
+                max_residues=self.limits.max_residues,
+            )
+        except LimitExceeded as error:
+            failure = error.code
+        if (
+            failure is None
+            and self.model is not None
+            and needs_model(source.detected_type or "", result)
+        ):
+            # Slow network call outside any transaction; TransientError retries the stage.
+            assisted = assist(
+                self.model, document, result, source.original_name, self.schema_errors
+            )
+            result = assisted.result
+            model_version, prompt_version = assisted.model_version, assisted.prompt_version
+            if len(result["records"]) > self.limits.max_candidates:
+                failure = "candidate_limit"
+        if failure is None and self.schema_errors("extraction-result", result):
+            failure = "invalid_extraction_result"
+        if failure is None:
+            blocks = {b["block_id"]: b["raw_text"] for b in document["blocks"]}
+            if check_extraction(blocks, records_from_extraction(result)):
                 failure = "invalid_extraction_result"
-            if failure is None:
-                blocks = {b["block_id"]: b["raw_text"] for b in document["blocks"]}
-                if check_extraction(blocks, records_from_extraction(result)):
-                    failure = "invalid_extraction_result"
+        with self.uow_factory() as uow:
+            row = self._current(uow, job)
+            if row is None:
+                return
             if failure is not None:
                 self._fail(uow, row, failure)
             else:
-                uow.runs.set_extraction(run.run_id, result, model_version=None, prompt_version=None)
+                uow.runs.set_extraction(
+                    run.run_id, result, model_version=model_version, prompt_version=prompt_version
+                )
                 self._advance(uow, row)
             uow.commit()
 
@@ -316,8 +340,13 @@ class TaskService:
             uow.commit()
             return cancelled
 
-    def reprocess(self, actor: Actor, task_id: str) -> TaskRow:
-        """New extraction run; open candidates of the old run are superseded (T16)."""
+    def reprocess(
+        self, actor: Actor, task_id: str, *, tracked_changes_view: str | None = None
+    ) -> TaskRow:
+        """New extraction run; open candidates of the old run are superseded (T16). A
+        tracked-changes view choice applies to this and later runs (design section 5)."""
+        if tracked_changes_view not in (None, "original", "changes_accepted"):
+            raise InvalidRequest("tracked_changes_view must be original or changes_accepted.")
         with self.uow_factory() as uow:
             row = self._task(uow, actor, task_id)
             source = uow.files.get(row.file_id)
@@ -331,7 +360,10 @@ class TaskService:
                 for candidate_row in uow.candidates.list_for_run(row.current_run_id):
                     if candidate_row.candidate.status not in TERMINAL:
                         uow.candidates.save(candidate_row.candidate.supersede())
-            updated = replace(row, task=task, generation=row.generation + 1)
+            options = dict(row.parse_options)
+            if tracked_changes_view is not None:
+                options["tracked_changes_view"] = tracked_changes_view
+            updated = replace(row, task=task, generation=row.generation + 1, parse_options=options)
             uow.tasks.save(updated)
             uow.jobs.enqueue(task_id, updated.generation, TaskStatus.PARSING.value)
             uow.audit.record(

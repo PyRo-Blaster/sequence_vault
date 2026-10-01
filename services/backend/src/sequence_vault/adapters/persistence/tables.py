@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -88,6 +89,12 @@ file_task = Table(
     Column("generation", Integer, nullable=False, server_default="1"),
     _created(),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column(
+        "parse_options",
+        JSONB,
+        nullable=False,
+        server_default=text('\'{"tracked_changes_view": "not_applicable"}\'::jsonb'),
+    ),
 )
 
 extraction_run = Table(

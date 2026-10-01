@@ -120,3 +120,37 @@ test("viewers can search but not upload or review", async ({ page }) => {
   await page.getByRole("link", { name: "序列检索" }).click();
   await expect(page.getByRole("button", { name: "检索" })).toBeVisible();
 });
+
+test("T07: Word tracked changes can be reparsed with the other view", async ({ page }) => {
+  const id = unique();
+  const { execFileSync } = await import("node:child_process");
+  const docx = execFileSync("uv", [
+    "run",
+    "python",
+    "-c",
+    `
+import sys
+sys.path.insert(0, "../..")
+from tests.fixtures import builders
+sys.stdout.buffer.write(builders.docx(["Construct_${id}", [("t", "MKTAYIAKQRQISF"), ("ins", "VKSH"), ("del", "WWWW")]]))
+`,
+  ]);
+  await login(page, "alice@example.test");
+  await page.goto("/tasks");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: `Construct_${id}.docx`,
+    mimeType: "application/octet-stream",
+    buffer: docx,
+  });
+  const row = page.getByRole("row", { name: new RegExp(`Construct_${id}`) }).first();
+  await expect(row.getByText("待审核")).toBeVisible({ timeout: 30_000 });
+  await row.getByRole("link", { name: "审核" }).click();
+  await expect(page.getByText("当前按「接受修订后」解析")).toBeVisible();
+  await expect(page.getByTestId("candidate-0").getByLabel("序列")).toContainText("VKSH");
+  await page.getByRole("button", { name: "改按原文重新解析" }).click();
+  await expect(page.getByRole("link", { name: "上传与任务" })).toBeVisible();
+  await expect(row.getByText("待审核")).toBeVisible({ timeout: 30_000 });
+  await row.getByRole("link", { name: "审核" }).click();
+  await expect(page.getByText("当前按「原文」解析")).toBeVisible();
+  await expect(page.getByTestId("candidate-0").getByLabel("序列")).toContainText("WWWW");
+});

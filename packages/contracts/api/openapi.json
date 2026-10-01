@@ -815,6 +815,27 @@
         "title": "RecordSummary",
         "type": "object"
       },
+      "ReprocessRequest": {
+        "properties": {
+          "tracked_changes_view": {
+            "anyOf": [
+              {
+                "enum": [
+                  "original",
+                  "changes_accepted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracked Changes View"
+          }
+        },
+        "title": "ReprocessRequest",
+        "type": "object"
+      },
       "ResolutionRequest": {
         "properties": {
           "resolution": {
@@ -3042,6 +3063,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReprocessRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "content": {

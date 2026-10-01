@@ -62,6 +62,8 @@ def test_t05_filename_conflicting_with_body_name_keeps_both() -> None:
     ]
     same = run(b">RSPO3_C07\nMKTAYIAKQR\n", "rspo3_c07.fasta")
     assert summary(same)[0][1] == "unambiguous"
+    generic = run(b">RSPO3_C07\nMKTAYIAKQR\n", "results.fasta")
+    assert summary(generic)[0][1] == "unambiguous"
 
 
 def test_heading_paragraphs_and_unnamed_multiples() -> None:

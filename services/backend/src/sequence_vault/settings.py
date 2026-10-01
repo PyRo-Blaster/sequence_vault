@@ -28,6 +28,14 @@ class Settings:
     contracts_dir: Path
     config_dir: Path
     ai_enabled: bool
+    ai_provider: str
+    ai_model: str
+    ai_effort: str
+    ai_region: str | None
+    ai_project: str | None
+    ai_base_url: str | None
+    ai_api_key: str | None
+    prompts_dir: Path
     trusted_identity_header: str
     proxy_secret: str | None
     dev_login: bool
@@ -57,6 +65,16 @@ class Settings:
             ),
             config_dir=Path(env.get("SEQUENCE_VAULT_CONFIG_DIR", REPO_ROOT / "config")),
             ai_enabled=_flag(env.get("SEQUENCE_VAULT_AI_ENABLED")),
+            ai_provider=env.get("SEQUENCE_VAULT_AI_PROVIDER", "anthropic"),
+            ai_model=env.get("SEQUENCE_VAULT_AI_MODEL_VERSION") or "claude-opus-5-5",
+            ai_effort=env.get("SEQUENCE_VAULT_AI_EFFORT", "medium"),
+            ai_region=env.get("SEQUENCE_VAULT_AI_REGION") or None,
+            ai_project=env.get("SEQUENCE_VAULT_AI_PROJECT") or None,
+            ai_base_url=env.get("SEQUENCE_VAULT_AI_ENDPOINT") or None,
+            ai_api_key=env.get("SEQUENCE_VAULT_AI_API_KEY") or None,
+            prompts_dir=Path(
+                env.get("SEQUENCE_VAULT_PROMPTS_DIR", REPO_ROOT / "prompts/extraction/v1")
+            ),
             trusted_identity_header=env.get("SEQUENCE_VAULT_IDENTITY_HEADER", "X-Forwarded-Email"),
             proxy_secret=env.get("SEQUENCE_VAULT_PROXY_SECRET") or None,
             dev_login=_flag(env.get("SEQUENCE_VAULT_DEV_LOGIN")),

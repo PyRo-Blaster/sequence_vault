@@ -59,6 +59,10 @@ class RevisionRequest(BaseModel):
     revision: int = Field(ge=1)
 
 
+class ReprocessRequest(BaseModel):
+    tracked_changes_view: Literal["original", "changes_accepted"] | None = None
+
+
 class ReviewRequest(BaseModel):
     candidate_id: str
     revision: int = Field(ge=1)
@@ -222,8 +226,9 @@ def create_app(container: ApiServices) -> FastAPI:
         tags=["jobs"],
         response_model=schemas.TaskState,
     )
-    def reprocess_job(task_id: str, user: User) -> Json:
-        row = container.tasks.reprocess(user.actor, task_id)
+    def reprocess_job(task_id: str, user: User, body: ReprocessRequest | None = None) -> Json:
+        view = body.tracked_changes_view if body else None
+        row = container.tasks.reprocess(user.actor, task_id, tracked_changes_view=view)
         return {"task_id": task_id, "status": row.task.status.value, "generation": row.generation}
 
     @app.get(

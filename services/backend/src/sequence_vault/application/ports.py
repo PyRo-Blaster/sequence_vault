@@ -1,7 +1,7 @@
 """Interfaces the use cases need; adapters implement them."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any, Protocol, Self
 
@@ -42,12 +42,16 @@ class FileRow:
     security_status: str
 
 
+DEFAULT_PARSE_OPTIONS: Json = {"tracked_changes_view": "not_applicable"}
+
+
 @dataclass(frozen=True, slots=True)
 class TaskRow:
     task: FileTask
     file_id: str
     current_run_id: str | None
     generation: int
+    parse_options: Json = field(default_factory=lambda: dict(DEFAULT_PARSE_OPTIONS))
 
 
 @dataclass(frozen=True, slots=True)

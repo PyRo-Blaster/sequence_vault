@@ -15,6 +15,8 @@ dev = [
   "moto[s3]==5.2.3",
   "boto3-stubs[s3]==1.43.106",
   "httpx2==2.13.1",
+  "types-openpyxl==3.1.5.20260827",
+  "lxml-stubs==0.5.1",
 ]
 
 [tool.uv.sources]
@@ -37,13 +39,14 @@ known-first-party = ["sequence_vault"]
 [tool.ruff.lint.per-file-ignores]
 # Tests feed look-alike characters (Cyrillic, full-width) to QC on purpose.
 "tests/**" = ["RUF001", "RUF003"]
+"tools/evaluation/build_synthetic_set.py" = ["RUF001", "E402"]
 # Migrations embed reviewed SQL verbatim.
 "database/migrations/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["services/backend/src", "tests/unit", "tests/integration"]
+files = ["services/backend/src", "tests/unit", "tests/integration", "tools/evaluation"]
 
 [tool.importlinter]
 root_package = "sequence_vault"

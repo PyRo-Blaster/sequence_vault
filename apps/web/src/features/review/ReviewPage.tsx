@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, Button, Card, Col, Empty, Row, Space, Spin, Typography } from "antd";
 import { useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { EvidenceViewer, type Highlight } from "../../components/EvidenceViewer";
 import { TaskStatusTag } from "../../components/StatusTag";
@@ -32,6 +32,7 @@ export function ReviewPage() {
   const { project } = useProject();
   const queryClient = useQueryClient();
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [focus, setFocus] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -61,6 +62,28 @@ export function ReviewPage() {
   const approvable = visible.filter(canApprove);
   const canEdit = hasRole(project, "uploader", "reviewer");
   const canReview = hasRole(project, "reviewer");
+
+  const trackedView = (
+    document.data?.run?.parse_options as { tracked_changes_view?: string } | null | undefined
+  )?.tracked_changes_view;
+  const [reparsing, setReparsing] = useState(false);
+  async function reparse(view: "original" | "changes_accepted") {
+    setReparsing(true);
+    try {
+      await unwrap(
+        api.POST("/v1/jobs/{task_id}/reprocess", {
+          params: { path: { task_id: taskId } },
+          body: { tracked_changes_view: view },
+        }),
+      );
+      message.success("已提交重新解析，旧候选将被取代");
+      navigate("/tasks");
+    } catch (error) {
+      message.error(errorText(error));
+    } finally {
+      setReparsing(false);
+    }
+  }
 
   async function approveAll() {
     setApproving(true);
@@ -114,6 +137,27 @@ export function ReviewPage() {
             下载原文件
           </Button>
         </Space>
+        {trackedView && trackedView !== "not_applicable" && (
+          <Alert
+            style={{ marginTop: 8 }}
+            type="info"
+            showIcon
+            message={`文件含修订记录，当前按「${trackedView === "original" ? "原文" : "接受修订后"}」解析`}
+            action={
+              canEdit && (
+                <Button
+                  size="small"
+                  loading={reparsing}
+                  onClick={() =>
+                    void reparse(trackedView === "original" ? "changes_accepted" : "original")
+                  }
+                >
+                  改按{trackedView === "original" ? "接受修订后" : "原文"}重新解析
+                </Button>
+              )
+            }
+          />
+        )}
         {(document.data?.run?.coverage?.warnings as string[] | undefined)?.map((warning) => (
           <Alert key={warning} type="warning" showIcon message={warning} style={{ marginTop: 8 }} />
         ))}

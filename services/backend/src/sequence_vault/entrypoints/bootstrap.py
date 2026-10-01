@@ -5,6 +5,7 @@ from functools import partial
 
 from sqlalchemy import Engine, create_engine
 
+from sequence_vault.adapters.ai.gateway import AnthropicLocator, build_client
 from sequence_vault.adapters.contracts import Policy, load_policy, load_registry, schema_errors
 from sequence_vault.adapters.parsers.registry import enabled_formats
 from sequence_vault.adapters.parsers.sandbox import SandboxedParser
@@ -17,6 +18,7 @@ from sequence_vault.adapters.storage.local import LocalObjectStore
 from sequence_vault.adapters.storage.s3 import S3ObjectStore
 from sequence_vault.api.app import ApiServices
 from sequence_vault.application.commit import CommitService
+from sequence_vault.application.model_assist import LocatorModel
 from sequence_vault.application.ports import ObjectStore, Scanner
 from sequence_vault.application.processing import Pipeline, PipelineLimits, TaskService
 from sequence_vault.application.queries import QueryService
@@ -79,6 +81,29 @@ def api_services(container: Container) -> ApiServices:
     )
 
 
+def build_model(settings: Settings) -> LocatorModel | None:
+    """The model gateway, or None while the organization has not approved one."""
+    if not settings.ai_enabled:
+        return None
+    client = build_client(
+        settings.ai_provider,
+        region=settings.ai_region,
+        project=settings.ai_project,
+        base_url=settings.ai_base_url,
+        api_key=settings.ai_api_key,
+    )
+    model = settings.ai_model
+    if settings.ai_provider == "bedrock" and not model.startswith("anthropic."):
+        model = f"anthropic.{model}"
+    return AnthropicLocator(
+        client,
+        model=model,
+        prompt_dir=settings.prompts_dir,
+        effort=settings.ai_effort,
+        server_fallback=settings.ai_provider == "anthropic",
+    )
+
+
 def build(settings: Settings, *, engine: Engine | None = None) -> Container:
     engine = engine or create_engine(settings.database_url, pool_pre_ping=True)
     uow = SqlUnitOfWorkFactory(engine)
@@ -99,6 +124,7 @@ def build(settings: Settings, *, engine: Engine | None = None) -> Container:
             max_candidates=policy.limits.max_candidates_per_file,
             max_residues=policy.limits.max_residues_per_sequence,
         ),
+        model=build_model(settings),
     )
     return Container(
         settings=settings,
