@@ -1,7 +1,15 @@
 # Database migrations
 
-Store ordered, reviewed PostgreSQL migrations here after selecting migration tooling. No tables have been created by the scaffold.
+Reviewed Alembic migrations for PostgreSQL. Each version file embeds its DDL verbatim so reviewers read exactly what runs.
 
-Model tenants, projects and permissions; source_file; extraction_run; immutable document_block; candidate revisions; qc_issue; review; sequence_entity; record/version; provenance; and audit. Add unique constraints on `(tenant_id, type, sha256)`, `(project_id, name_key)`, and `(record_id, version_no)`. Compare full canonical content after hash matching. Never overwrite a published sequence version.
+```sh
+SEQUENCE_VAULT_DATABASE_URL=postgresql+psycopg://user@host/db \
+  uv run alembic -c database/alembic.ini upgrade head
+```
 
-Review authorization boundaries, transaction rollback, idempotency storage, foreign keys, and concurrent name/version creation alongside every relevant migration. Include a safe rollout and rollback/data-preservation plan.
+`services/backend/src/sequence_vault/adapters/persistence/tables.py` mirrors the schema for queries; `tests/integration/test_schema.py` fails if the two drift. The schema enforces the design's guarantees in the database as well as in code:
+
+- `sequence_entity (tenant_id, molecule_type, sha256)`, `record (project_id, name_key)` and `record_version (record_id, version_no)` are unique, and each record has one current version.
+- `document_block` and `sequence_entity` rows cannot be updated or deleted; `record_version` rows can only be superseded.
+
+Never edit a released migration; add a new version with a rollout and rollback plan.

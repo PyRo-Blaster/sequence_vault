@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: setup check scaffold lint typecheck test
+.PHONY: setup check scaffold lint typecheck test integration
 setup:
 	$(UV) sync --locked
 
@@ -20,3 +20,6 @@ typecheck:
 
 test:
 	$(UV) run --locked pytest
+
+integration:
+	$(UV) run --locked pytest tests/integration

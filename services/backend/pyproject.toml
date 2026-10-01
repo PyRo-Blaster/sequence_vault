@@ -3,7 +3,11 @@ name = "sequence-vault"
 version = "0.1.0"
 description = "Protein sequence import, evidence review and quality control backend."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "sqlalchemy>=2.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.8.17,<0.9"]

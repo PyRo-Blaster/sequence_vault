@@ -34,11 +34,13 @@ known-first-party = ["sequence_vault"]
 [tool.ruff.lint.per-file-ignores]
 # Tests feed look-alike characters (Cyrillic, full-width) to QC on purpose.
 "tests/**" = ["RUF001", "RUF003"]
+# Migrations embed reviewed SQL verbatim.
+"database/migrations/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["services/backend/src", "tests/unit"]
+files = ["services/backend/src", "tests/unit", "tests/integration"]
 
 [tool.importlinter]
 root_package = "sequence_vault"
