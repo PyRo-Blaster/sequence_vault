@@ -71,6 +71,13 @@ export const nameSource: Record<string, string> = {
   heading: "段落标题",
   filename: "文件名",
   manual: "手工输入",
+  legacy_import: "旧系统导入",
+};
+
+export const origin: Record<string, string> = {
+  extracted: "提取",
+  manual_revision: "人工修订",
+  legacy_import: "旧系统导入（无原文证据）",
 };
 
 export const completeness: Record<string, string> = {

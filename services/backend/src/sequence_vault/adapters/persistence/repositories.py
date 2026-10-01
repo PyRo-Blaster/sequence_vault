@@ -1,10 +1,13 @@
 """SQLAlchemy Core implementations of the application ports."""
 
 import uuid
+from collections.abc import Sequence
+from datetime import datetime
 from types import TracebackType
 from typing import Any, Self
 
 from sqlalchemy import Connection, Engine, func, insert, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, OperationalError
 
@@ -23,6 +26,8 @@ from sequence_vault.application.ports import (
     CurrentVersion,
     FileRow,
     Json,
+    LegacyBatchRow,
+    LegacyLink,
     RunRow,
     StoredCommit,
     TaskRow,
@@ -550,6 +555,98 @@ class SqlJobs:
         )
 
 
+class SqlLegacy:
+    def __init__(self, connection: Connection) -> None:
+        self.c = connection
+
+    def create_batch(self, row: LegacyBatchRow) -> None:
+        self.c.execute(
+            insert(t.legacy_batch).values(
+                id=row.batch_id,
+                tenant_id=row.tenant_id,
+                project_id=row.project_id,
+                file_id=row.file_id,
+                operator_id=row.operator_id,
+                source_system=row.source_system,
+                legacy_project=row.legacy_project,
+                exported_at=row.exported_at,
+            )
+        )
+
+    def add(
+        self,
+        batch_id: str,
+        project_id: str,
+        legacy_id: str,
+        legacy_name: str,
+        created_at: datetime | None,
+        updated_at: datetime | None,
+        sequence_sha256: str,
+        candidate_id: str,
+    ) -> None:
+        self.c.execute(
+            insert(t.legacy_record).values(
+                batch_id=batch_id,
+                project_id=project_id,
+                legacy_id=legacy_id,
+                legacy_name=legacy_name,
+                legacy_created_at=created_at,
+                legacy_updated_at=updated_at,
+                sequence_sha256=sequence_sha256,
+                candidate_id=candidate_id,
+            )
+        )
+
+    def latest(self, project_id: str, legacy_ids: Sequence[str]) -> dict[str, LegacyLink]:
+        lr = t.legacy_record
+        query = (
+            select(
+                lr.c.legacy_id,
+                lr.c.legacy_name,
+                lr.c.sequence_sha256,
+                lr.c.candidate_id,
+                t.candidate.c.status,
+                t.sequence_entity.c.canonical_sequence,
+            )
+            .join(t.candidate, t.candidate.c.id == lr.c.candidate_id)
+            .outerjoin(t.provenance, t.provenance.c.candidate_id == lr.c.candidate_id)
+            .outerjoin(t.record_version, t.record_version.c.id == t.provenance.c.record_version_id)
+            .outerjoin(
+                t.sequence_entity,
+                t.sequence_entity.c.id == t.record_version.c.sequence_entity_id,
+            )
+            .where(lr.c.project_id == project_id, lr.c.legacy_id.in_(list(legacy_ids)))
+            .order_by(lr.c.legacy_id, lr.c.id.desc())
+            .ext(distinct_on(lr.c.legacy_id))
+        )
+        return {
+            row.legacy_id: LegacyLink(
+                legacy_id=row.legacy_id,
+                legacy_name=row.legacy_name,
+                sequence_sha256=row.sequence_sha256,
+                candidate_id=row.candidate_id,
+                candidate_status=row.status,
+                published_sequence=row.canonical_sequence,
+            )
+            for row in self.c.execute(query)
+        }
+
+    def finish_batch(self, batch_id: str, report: Json) -> None:
+        self.c.execute(
+            update(t.legacy_batch)
+            .where(t.legacy_batch.c.id == batch_id)
+            .values(report=report, finished_at=func.now())
+        )
+
+    def grants(self, project_id: str) -> frozenset[tuple[str, str]]:
+        rows = self.c.execute(
+            select(t.app_user.c.subject, t.project_member.c.role)
+            .join(t.app_user, t.app_user.c.id == t.project_member.c.user_id)
+            .where(t.project_member.c.project_id == project_id)
+        )
+        return frozenset((row.subject, row.role) for row in rows)
+
+
 class SqlUnitOfWork:
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
@@ -569,6 +666,7 @@ class SqlUnitOfWork:
         self.audit = SqlAudit(c)
         self.commits = SqlCommits(c)
         self.jobs = SqlJobs(c)
+        self.legacy = SqlLegacy(c)
         return self
 
     def commit(self) -> None:

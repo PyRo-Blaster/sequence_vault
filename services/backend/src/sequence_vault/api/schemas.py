@@ -82,7 +82,7 @@ class OrderedSpan(Span):
 
 class Name(Model):
     value: str
-    source: Literal["fasta_header", "table_cell", "heading", "filename", "manual"]
+    source: Literal["fasta_header", "table_cell", "heading", "filename", "manual", "legacy_import"]
     evidence: Span | None
 
 

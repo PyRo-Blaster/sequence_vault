@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from types import TracebackType
 from typing import Any, Protocol, Self
 
@@ -183,6 +184,50 @@ class Commits(Protocol):
     def put(self, key: str, candidate_id: str, result: StoredCommit) -> None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class LegacyBatchRow:
+    batch_id: str
+    tenant_id: str
+    project_id: str
+    file_id: str
+    operator_id: str
+    source_system: str
+    legacy_project: str
+    exported_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyLink:
+    """The latest import of one legacy ID and where it stands now."""
+
+    legacy_id: str
+    legacy_name: str
+    sequence_sha256: str
+    candidate_id: str
+    candidate_status: str
+    published_sequence: str | None
+
+
+class LegacyRecords(Protocol):
+    def create_batch(self, row: LegacyBatchRow) -> None: ...
+    def add(
+        self,
+        batch_id: str,
+        project_id: str,
+        legacy_id: str,
+        legacy_name: str,
+        created_at: datetime | None,
+        updated_at: datetime | None,
+        sequence_sha256: str,
+        candidate_id: str,
+    ) -> None: ...
+    def latest(self, project_id: str, legacy_ids: Sequence[str]) -> dict[str, LegacyLink]: ...
+    def finish_batch(self, batch_id: str, report: Json) -> None: ...
+    def grants(self, project_id: str) -> frozenset[tuple[str, str]]:
+        """(sign-in subject, role) pairs currently granted in the project."""
+        ...
+
+
 class UnitOfWork(Protocol):
     """One database transaction. Leaving the block without commit() rolls back."""
 
@@ -206,6 +251,8 @@ class UnitOfWork(Protocol):
     def commits(self) -> Commits: ...
     @property
     def jobs(self) -> Jobs: ...
+    @property
+    def legacy(self) -> LegacyRecords: ...
 
     def __enter__(self) -> Self: ...
     def __exit__(

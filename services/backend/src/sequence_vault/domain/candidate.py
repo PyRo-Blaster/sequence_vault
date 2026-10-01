@@ -100,6 +100,27 @@ class Candidate:
             qc=None,
         )
 
+    @classmethod
+    def legacy(
+        cls, candidate_id: str, run_id: str, name: Name | None, sequence: str, qc: QcResult
+    ) -> "Candidate":
+        """A record exported from the legacy system. The original is unavailable, so the
+        sequence is carried as typed text with no evidence spans (design, "Legacy System
+        Migration")."""
+        return cls(
+            candidate_id=candidate_id,
+            run_id=run_id,
+            revision=1,
+            status=cls._status_after_qc(qc, has_sequence=bool(sequence)),
+            name=name,
+            extracted_names=() if name is None else (name,),
+            spans=(),
+            typed_sequence=sequence,
+            completeness="unknown",
+            origin="legacy_import",
+            qc=qc,
+        )
+
     def validated(self, qc: QcResult, *, parser_delimited: bool) -> "Candidate":
         """Leave DRAFT after QC. ``parser_delimited`` means every span is a whole sequence
         block delimited by the parser (a FASTA body), the only case treated as complete."""

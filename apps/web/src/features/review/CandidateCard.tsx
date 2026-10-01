@@ -17,7 +17,13 @@ import { CandidateStatusTag, SeverityTag } from "../../components/StatusTag";
 import { SequenceView } from "../../components/SequenceView";
 import type { Highlight } from "../../components/EvidenceViewer";
 import { api, unwrap, type CandidateEnvelope, type Issue } from "../../lib/api";
-import { completeness, nameSource, resolutions as resolutionLabels, rules } from "../../lib/i18n";
+import {
+  completeness,
+  nameSource,
+  origin,
+  resolutions as resolutionLabels,
+  rules,
+} from "../../lib/i18n";
 import { useCandidateAction } from "./actions";
 import { canApprove, hasBlock, unresolved } from "./rules";
 import { SequenceEditor } from "./SequenceEditor";
@@ -132,9 +138,7 @@ export function CandidateCard({
           {Array.from(candidate.normalized_sequence).length}
         </Descriptions.Item>
         <Descriptions.Item label="完整性">{completeness[candidate.completeness]}</Descriptions.Item>
-        <Descriptions.Item label="来源">
-          {candidate.origin === "manual_revision" ? "人工修订" : "提取"}
-        </Descriptions.Item>
+        <Descriptions.Item label="来源">{origin[candidate.origin]}</Descriptions.Item>
       </Descriptions>
 
       {canEdit && open && (

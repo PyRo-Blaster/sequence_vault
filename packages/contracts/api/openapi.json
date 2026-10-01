@@ -677,7 +677,8 @@
               "table_cell",
               "heading",
               "filename",
-              "manual"
+              "manual",
+              "legacy_import"
             ],
             "title": "Source",
             "type": "string"

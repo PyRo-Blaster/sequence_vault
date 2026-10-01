@@ -255,3 +255,36 @@ stage_job = Table(
     _created(),
     UniqueConstraint("task_id", "generation", "stage"),
 )
+
+legacy_batch = Table(
+    "legacy_batch",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column("tenant_id", Text, ForeignKey("tenant.id"), nullable=False),
+    Column("project_id", Text, ForeignKey("project.id"), nullable=False),
+    Column("file_id", Text, ForeignKey("source_file.id"), nullable=False),
+    Column("operator_id", Text, ForeignKey("app_user.id"), nullable=False),
+    Column("source_system", Text, nullable=False),
+    Column("legacy_project", Text, nullable=False),
+    Column("exported_at", DateTime(timezone=True)),
+    Column("report", JSONB),
+    Column("finished_at", DateTime(timezone=True)),
+    _created(),
+)
+
+legacy_record = Table(
+    "legacy_record",
+    metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("batch_id", Text, ForeignKey("legacy_batch.id"), nullable=False),
+    Column("project_id", Text, ForeignKey("project.id"), nullable=False),
+    Column("legacy_id", Text, nullable=False),
+    Column("legacy_name", Text, nullable=False),
+    Column("legacy_created_at", DateTime(timezone=True)),
+    Column("legacy_updated_at", DateTime(timezone=True)),
+    Column("sequence_sha256", Text, nullable=False),
+    Column("candidate_id", Text, ForeignKey("candidate.id"), nullable=False, unique=True),
+    _created(),
+    UniqueConstraint("batch_id", "legacy_id"),
+    Index("legacy_record_lookup", "project_id", "legacy_id"),
+)

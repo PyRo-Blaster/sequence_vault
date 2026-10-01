@@ -639,7 +639,7 @@ export interface components {
        * Source
        * @enum {string}
        */
-      source: "fasta_header" | "table_cell" | "heading" | "filename" | "manual";
+      source: "fasta_header" | "table_cell" | "heading" | "filename" | "manual" | "legacy_import";
       /** Value */
       value: string;
     };
