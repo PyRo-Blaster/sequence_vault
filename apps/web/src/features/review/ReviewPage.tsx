@@ -158,6 +158,14 @@ export function ReviewPage() {
             }
           />
         )}
+        {document.data?.run?.parser_version === "legacy-export-1" && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginTop: 8 }}
+            message="旧系统迁移批次：原始文件不可用，序列与名称来自旧系统导出，没有原文证据。请对照旧系统记录审核。"
+          />
+        )}
         {(document.data?.run?.coverage?.warnings as string[] | undefined)?.map((warning) => (
           <Alert key={warning} type="warning" showIcon message={warning} style={{ marginTop: 8 }} />
         ))}

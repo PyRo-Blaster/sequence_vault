@@ -41,7 +41,7 @@ Topology and image requirements: [infrastructure/deployment](../../infrastructur
 | API availability | `GET /v1/health` | Non-200 for 2 minutes |
 | Job backlog | `SELECT count(*) FROM stage_job WHERE finished_at IS NULL AND available_at < now() - interval '10 minutes'` | Above 0 for 15 minutes |
 | Stage failures | `file_task.failure_code`, and the 质量概览 dashboard | `scan_unavailable`, `parser_crash` or `parser_timeout` rising |
-| Scanner | ClamAV health check | Unhealthy: uploads stop, by design |
+| Scanner | ClamAV health check | Unhealthy: processing stops at scanning, by design |
 | Parser isolation | Worker log `parser sandbox runs without a network namespace` | Expected in containers. Then verify the worker has no egress. |
 
 Logs are JSON. Residue runs are masked by the logging filter, and SQL parameters are hidden, so ordinary logs carry IDs, counts, durations and error codes only.

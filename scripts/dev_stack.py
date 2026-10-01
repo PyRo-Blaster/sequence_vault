@@ -2,10 +2,13 @@
 
 Uses SEQUENCE_VAULT_DATABASE_URL when set; otherwise starts a throwaway local PostgreSQL
 cluster (deleted on exit). Storage is local and the scanner is the development scanner.
+With SEQUENCE_VAULT_DEV_STATE=path, writes the database URL, storage directory and seeded
+IDs there as JSON for end-to-end tests.
 
     uv run python scripts/dev_stack.py
 """
 
+import json
 import os
 import shutil
 import signal
@@ -94,9 +97,27 @@ def main() -> int:
         subprocess.run(
             [*python, "sequence_vault.entrypoints.admin", "migrate"], env=env, check=True
         )
-        subprocess.run(
-            [*python, "sequence_vault.entrypoints.admin", "seed-dev"], env=env, check=True
-        )
+        seeded = subprocess.run(
+            [*python, "sequence_vault.entrypoints.admin", "seed-dev"],
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        print(seeded, end="")
+        state = os.environ.get("SEQUENCE_VAULT_DEV_STATE")
+        if state:
+            # Lets end-to-end tests run operator tools against this throwaway stack.
+            storage = Path(env.get("SEQUENCE_VAULT_LOCAL_STORAGE_DIR", ".local/objects"))
+            Path(state).write_text(
+                json.dumps(
+                    {
+                        **json.loads(seeded),
+                        "database_url": env["SEQUENCE_VAULT_DATABASE_URL"],
+                        "local_storage_dir": str(storage.resolve()),
+                    }
+                )
+            )
         server = subprocess.Popen([*python, "sequence_vault.entrypoints.dev_server"], env=env)
         signal.signal(signal.SIGTERM, lambda *_: server.terminate())
         return server.wait()
