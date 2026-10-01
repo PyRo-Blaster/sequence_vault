@@ -112,9 +112,13 @@ class Candidate:
             status=self._status_after_qc(qc, has_sequence=bool(self.spans)),
         )
 
-    def rename(self, expected_revision: int, name: Name) -> "Candidate":
+    def rename(self, expected_revision: int, name: Name, qc: QcResult | None = None) -> "Candidate":
+        """Select or type a name. ``qc`` carries refreshed publication issues (QC09, QC10),
+        which depend on the name."""
         self._check_editable(expected_revision)
-        return self._next_revision(name=name)
+        if qc is None:
+            return self._next_revision(name=name)
+        return self._next_revision(name=name, qc=qc)
 
     def revise_sequence(
         self,

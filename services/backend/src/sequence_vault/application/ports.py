@@ -1,0 +1,204 @@
+"""Interfaces the use cases need; adapters implement them."""
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from types import TracebackType
+from typing import Any, Protocol, Self
+
+from sequence_vault.application.authorization import Role
+from sequence_vault.domain.candidate import Candidate
+from sequence_vault.domain.publication import StoredEntity, StoredRecord
+from sequence_vault.domain.task import FileTask
+
+Json = dict[str, Any]
+
+
+class ConcurrentUpdate(Exception):
+    """A uniqueness or serialization conflict with another transaction; retry once."""
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateRow:
+    candidate: Candidate
+    tenant_id: str
+    project_id: str
+    file_id: str
+    extraction_record_index: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class FileRow:
+    file_id: str
+    tenant_id: str
+    project_id: str
+    uploaded_by: str
+    original_name: str
+    declared_bytes: int
+    declared_sha256: str
+    byte_count: int | None
+    sha256: str | None
+    object_key: str
+    detected_type: str | None
+    security_status: str
+
+
+@dataclass(frozen=True, slots=True)
+class TaskRow:
+    task: FileTask
+    file_id: str
+    current_run_id: str | None
+    generation: int
+
+
+@dataclass(frozen=True, slots=True)
+class RunRow:
+    run_id: str
+    file_id: str
+    generation: int
+    qc_version: str
+    schema_version: str
+    parser_version: str | None
+    model_version: str | None
+    prompt_version: str | None
+    coverage: Json | None
+    extraction_result: Json | None
+
+
+@dataclass(frozen=True, slots=True)
+class BlockRow:
+    block_id: str
+    type: str
+    raw_text: str
+    location: Json
+    extraction_method: str
+
+
+@dataclass(frozen=True, slots=True)
+class CurrentVersion:
+    version_id: str
+    version_no: int
+    sequence: str
+
+
+@dataclass(frozen=True, slots=True)
+class StoredCommit:
+    approved_revision: int
+    status: str
+    record_id: str | None
+    record_version_id: str | None
+
+
+class Members(Protocol):
+    def roles(self, user_id: str, project_id: str) -> frozenset[Role]: ...
+
+
+class Candidates(Protocol):
+    def get(self, candidate_id: str, *, for_update: bool = False) -> CandidateRow | None: ...
+    def add(self, row: CandidateRow) -> None: ...
+    def save(self, candidate: Candidate) -> None: ...
+    def list_for_run(self, run_id: str) -> list[CandidateRow]: ...
+
+
+class Files(Protocol):
+    def get(self, file_id: str) -> FileRow | None: ...
+
+
+class Tasks(Protocol):
+    def get_by_file(self, file_id: str, *, for_update: bool = False) -> TaskRow | None: ...
+    def save(self, row: TaskRow) -> None: ...
+
+
+class Runs(Protocol):
+    def get(self, run_id: str) -> RunRow | None: ...
+    def blocks(self, run_id: str) -> list[BlockRow]: ...
+
+
+class Publication(Protocol):
+    def find_entities(
+        self, tenant_id: str, molecule_type: str, sha256: str
+    ) -> list[StoredEntity]: ...
+    def find_entities_in_project(
+        self, project_id: str, molecule_type: str, sha256: str
+    ) -> list[StoredEntity]: ...
+    def create_entity(self, tenant_id: str, molecule_type: str, sequence: str) -> str: ...
+    def find_record(
+        self, project_id: str, name_key: str, *, for_update: bool = False
+    ) -> StoredRecord | None: ...
+    def create_record(
+        self, tenant_id: str, project_id: str, name_key: str, display: str
+    ) -> str: ...
+    def current_version(self, record_id: str) -> CurrentVersion | None: ...
+    def supersede(self, version_id: str) -> None: ...
+    def add_version(
+        self,
+        record_id: str,
+        version_no: int,
+        entity_id: str,
+        previous_version_id: str | None,
+        created_by: str,
+    ) -> str: ...
+    def add_provenance(
+        self, record_version_id: str, row: CandidateRow, committed_by: str
+    ) -> None: ...
+
+
+class Reviews(Protocol):
+    def add(
+        self, candidate_id: str, run_id: str, revision: int, decision: str, reviewer: str
+    ) -> None: ...
+
+
+class Audit(Protocol):
+    def record(
+        self,
+        tenant_id: str,
+        actor_id: str | None,
+        event: str,
+        entity_type: str,
+        entity_id: str,
+        detail: Json | None = None,
+    ) -> None: ...
+
+
+class Commits(Protocol):
+    def get(self, key: str, candidate_id: str) -> StoredCommit | None: ...
+    def put(self, key: str, candidate_id: str, result: StoredCommit) -> None: ...
+
+
+class UnitOfWork(Protocol):
+    """One database transaction. Leaving the block without commit() rolls back."""
+
+    @property
+    def members(self) -> Members: ...
+    @property
+    def candidates(self) -> Candidates: ...
+    @property
+    def files(self) -> Files: ...
+    @property
+    def tasks(self) -> Tasks: ...
+    @property
+    def runs(self) -> Runs: ...
+    @property
+    def publication(self) -> Publication: ...
+    @property
+    def reviews(self) -> Reviews: ...
+    @property
+    def audit(self) -> Audit: ...
+    @property
+    def commits(self) -> Commits: ...
+
+    def __enter__(self) -> Self: ...
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None: ...
+    def commit(self) -> None: ...
+
+
+class UnitOfWorkFactory(Protocol):
+    def __call__(self) -> UnitOfWork: ...
+
+
+SequenceOfRows = Sequence[CandidateRow]

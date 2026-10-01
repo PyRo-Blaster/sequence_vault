@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from sequence_vault.domain.candidate import (
@@ -119,3 +121,14 @@ def test_reextraction_supersedes_open_candidates_only(registry: QcRegistry) -> N
     committed = in_review(registry).approve(1, "reviewer").mark_committed(1)
     with pytest.raises(InvalidTransition):
         committed.supersede()
+
+
+def test_rename_can_carry_refreshed_publication_issues(registry: QcRegistry) -> None:
+    candidate = in_review(registry)
+    assert candidate.qc is not None
+    qc09 = registry.issue("QC09", "This name already has version 1 with a different sequence.")
+    refreshed = replace(candidate.qc, issues=(*candidate.qc.issues, qc09))
+    renamed = candidate.rename(1, Name("Existing", "manual", None), refreshed)
+    assert renamed.qc is refreshed
+    with pytest.raises(UnresolvedIssues, match="QC09"):
+        renamed.approve(2, "reviewer")

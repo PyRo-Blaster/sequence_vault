@@ -1,0 +1,214 @@
+"""Per-item commit transaction (design section 7, "Commit Transaction")."""
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from enum import StrEnum
+
+from sequence_vault.application.authorization import PERMISSIONS, Action, Actor
+from sequence_vault.application.ports import (
+    CandidateRow,
+    ConcurrentUpdate,
+    StoredCommit,
+    UnitOfWork,
+    UnitOfWorkFactory,
+)
+from sequence_vault.application.review import settle_task
+from sequence_vault.domain.candidate import CandidateStatus, RevisionConflict
+from sequence_vault.domain.naming import name_key
+from sequence_vault.domain.publication import RecordAction, plan_publication, sequence_sha256
+from sequence_vault.domain.qc.engine import MoleculeType
+from sequence_vault.domain.qc.registry import QcRegistry
+from sequence_vault.domain.task import TaskStatus
+
+PUBLISHED_TYPE = MoleculeType.PROTEIN.value
+
+
+class CommitStatus(StrEnum):
+    COMMITTED = "COMMITTED"
+    ALREADY_COMMITTED = "ALREADY_COMMITTED"
+    CONFLICT = "CONFLICT"
+    FAILED = "FAILED"
+
+
+@dataclass(frozen=True, slots=True)
+class CommitItem:
+    candidate_id: str
+    revision: int
+
+
+@dataclass(frozen=True, slots=True)
+class CommitOutcome:
+    candidate_id: str
+    status: CommitStatus
+    reason: str | None = None
+    record_id: str | None = None
+    record_version_id: str | None = None
+
+
+class _Stop(Exception):
+    def __init__(self, status: CommitStatus, reason: str) -> None:
+        super().__init__(reason)
+        self.status = status
+        self.reason = reason
+
+
+class CommitService:
+    def __init__(self, uow_factory: UnitOfWorkFactory, registry: QcRegistry) -> None:
+        self.uow_factory = uow_factory
+        self.registry = registry
+
+    def commit(self, actor: Actor, key: str, items: Sequence[CommitItem]) -> list[CommitOutcome]:
+        """Commit each item in its own transaction; one failure never affects another item."""
+        return [self._commit_with_retry(actor, key, item) for item in items]
+
+    def _commit_with_retry(self, actor: Actor, key: str, item: CommitItem) -> CommitOutcome:
+        for attempt in range(2):
+            try:
+                return self._commit_one(actor, key, item)
+            except ConcurrentUpdate:
+                if attempt == 1:
+                    return CommitOutcome(
+                        item.candidate_id, CommitStatus.CONFLICT, "concurrent_change"
+                    )
+        raise AssertionError("unreachable")
+
+    def _commit_one(self, actor: Actor, key: str, item: CommitItem) -> CommitOutcome:
+        with self.uow_factory() as uow:
+            try:
+                outcome = self._apply(uow, actor, key, item)
+            except _Stop as stop:
+                return CommitOutcome(item.candidate_id, stop.status, stop.reason)
+            if outcome.status is CommitStatus.COMMITTED:
+                uow.commit()
+            return outcome
+
+    def _apply(self, uow: UnitOfWork, actor: Actor, key: str, item: CommitItem) -> CommitOutcome:
+        stored = uow.commits.get(key, item.candidate_id)
+        if stored is not None:
+            if stored.approved_revision != item.revision:
+                raise _Stop(CommitStatus.CONFLICT, "idempotency_key_reused")
+            return CommitOutcome(
+                item.candidate_id,
+                CommitStatus(stored.status),
+                record_id=stored.record_id,
+                record_version_id=stored.record_version_id,
+            )
+
+        row = uow.candidates.get(item.candidate_id, for_update=True)
+        if row is None or row.tenant_id != actor.tenant_id:
+            raise _Stop(CommitStatus.FAILED, "not_found")
+        roles = uow.members.roles(actor.user_id, row.project_id)
+        if not roles:
+            raise _Stop(CommitStatus.FAILED, "not_found")
+        if not roles & PERMISSIONS[Action.COMMIT]:
+            raise _Stop(CommitStatus.FAILED, "forbidden")
+        candidate = row.candidate
+        if candidate.status is CandidateStatus.COMMITTED:
+            return CommitOutcome(item.candidate_id, CommitStatus.ALREADY_COMMITTED)
+
+        source = uow.files.get(row.file_id)
+        if source is None or source.security_status != "clean":
+            raise _Stop(CommitStatus.FAILED, "file_not_clean")
+        task = uow.tasks.get_by_file(row.file_id, for_update=True)
+        if task is None or task.task.status is TaskStatus.CANCELLED:
+            raise _Stop(CommitStatus.CONFLICT, "task_cancelled")
+        if task.current_run_id != candidate.run_id:
+            raise _Stop(CommitStatus.CONFLICT, "superseded_run")
+        if (
+            candidate.status is not CandidateStatus.APPROVED
+            or candidate.approved_revision != item.revision
+            or candidate.revision != item.revision
+        ):
+            raise _Stop(CommitStatus.CONFLICT, "stale_revision")
+        qc = candidate.qc
+        if qc is None or qc.qc_version != self.registry.version:
+            raise _Stop(CommitStatus.CONFLICT, "qc_version_changed")
+        if qc.blocked or qc.normalized is None or not qc.normalized.sequence:
+            raise _Stop(CommitStatus.CONFLICT, "blocking_issues")
+        protein_confirmed = candidate.resolutions.get("QC11") == "confirm_molecule_type"
+        if qc.molecule_type is not MoleculeType.PROTEIN and not protein_confirmed:
+            raise _Stop(CommitStatus.CONFLICT, "not_protein")
+        if candidate.name is None:
+            raise _Stop(CommitStatus.CONFLICT, "name_missing")
+
+        return self._publish(uow, actor, key, item, row, qc.normalized.sequence)
+
+    def _publish(
+        self,
+        uow: UnitOfWork,
+        actor: Actor,
+        key: str,
+        item: CommitItem,
+        row: CandidateRow,
+        sequence: str,
+    ) -> CommitOutcome:
+        candidate = row.candidate
+        assert candidate.name is not None
+        publication = uow.publication
+        key_name = name_key(candidate.name.value)
+        record = publication.find_record(row.project_id, key_name, for_update=True)
+        matches = publication.find_entities(
+            row.tenant_id, PUBLISHED_TYPE, sequence_sha256(sequence)
+        )
+        plan = plan_publication(
+            self.registry, sequence, matches, record, candidate.resolutions.get("QC09")
+        )
+        if plan.record_action is RecordAction.NEEDS_DECISION:
+            raise _Stop(CommitStatus.CONFLICT, "needs_version_decision")
+        if plan.record_action is RecordAction.CANCEL:
+            raise _Stop(CommitStatus.CONFLICT, "version_cancelled")
+        if matches and plan.reuse_entity_id is None:
+            raise _Stop(CommitStatus.FAILED, "hash_collision")
+
+        entity_id = plan.reuse_entity_id or publication.create_entity(
+            row.tenant_id, PUBLISHED_TYPE, sequence
+        )
+        if record is None:
+            record_id = publication.create_record(
+                row.tenant_id, row.project_id, key_name, candidate.name.value
+            )
+            version_id = publication.add_version(record_id, 1, entity_id, None, actor.user_id)
+        else:
+            record_id = record.record_id
+            current = publication.current_version(record_id)
+            assert current is not None
+            if plan.record_action is RecordAction.ADD_PROVENANCE:
+                version_id = current.version_id
+            else:
+                publication.supersede(current.version_id)
+                version_id = publication.add_version(
+                    record_id, current.version_no + 1, entity_id, current.version_id, actor.user_id
+                )
+        publication.add_provenance(version_id, row, actor.user_id)
+
+        try:
+            committed = candidate.mark_committed(item.revision)
+        except RevisionConflict as error:
+            raise _Stop(CommitStatus.CONFLICT, "stale_revision") from error
+        uow.candidates.save(committed)
+        uow.commits.put(
+            key,
+            item.candidate_id,
+            StoredCommit(item.revision, CommitStatus.COMMITTED.value, record_id, version_id),
+        )
+        uow.audit.record(
+            row.tenant_id,
+            actor.user_id,
+            "candidate.committed",
+            "candidate",
+            item.candidate_id,
+            {
+                "revision": item.revision,
+                "record_id": record_id,
+                "record_version_id": version_id,
+                "action": plan.record_action.value,
+                "reused_entity": plan.reuse_entity_id is not None,
+            },
+        )
+        settle_task(uow, row.file_id)
+        return CommitOutcome(
+            item.candidate_id,
+            CommitStatus.COMMITTED,
+            record_id=record_id,
+            record_version_id=version_id,
+        )
