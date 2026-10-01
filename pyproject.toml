@@ -46,7 +46,7 @@ known-first-party = ["sequence_vault"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["services/backend/src", "tests/unit", "tests/integration", "tests/security", "tests/performance", "tools/evaluation", "tools/legacy_migration", "infrastructure/backup"]
+files = ["services/backend/src", "tests/unit", "tests/integration", "tests/security", "tests/performance", "tools/evaluation", "tools/legacy_migration", "infrastructure/backup", "infrastructure/deployment"]
 
 [tool.importlinter]
 root_package = "sequence_vault"

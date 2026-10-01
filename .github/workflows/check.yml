@@ -79,3 +79,29 @@ jobs:
         working-directory: apps/web
       - run: pnpm e2e
         working-directory: apps/web
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate the Compose stack
+        run: |
+          sed 's/=$/=ci-placeholder/' infrastructure/local/compose.env.example > "$RUNNER_TEMP/compose.env"
+          docker compose -f infrastructure/local/compose.yaml --env-file "$RUNNER_TEMP/compose.env" config --quiet
+      - run: docker build -f services/backend/Dockerfile -t sequence-vault/backend:ci .
+      - run: docker build -t sequence-vault/web:ci apps/web
+      - name: Smoke-test the backend image
+        run: >-
+          docker run --rm -i --read-only --tmpfs /tmp --cap-drop ALL
+          --security-opt no-new-privileges:true sequence-vault/backend:ci
+          python - < infrastructure/deployment/smoke_image.py
+      - name: Smoke-test the web image
+        run: |
+          docker run -d --name web -p 8080:8080 --read-only --tmpfs /tmp \
+            --tmpfs /etc/nginx/conf.d:uid=101,gid=101 --tmpfs /var/cache/nginx:uid=101,gid=101 \
+            -e SEQUENCE_VAULT_PROXY_SECRET=ci -e SEQUENCE_VAULT_API_UPSTREAM=127.0.0.1:9 \
+            sequence-vault/web:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/ -o /dev/null && break; sleep 1; done
+          docker logs web
+          curl -fsS http://127.0.0.1:8080/records | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X PUT --data-binary @<(head -c 20000001 /dev/zero) http://127.0.0.1:8080/v1/uploads/x/content)" = 413

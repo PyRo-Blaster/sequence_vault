@@ -11,4 +11,4 @@
 - [x] **Task 3: Legacy migration.** `tools/legacy_migration`: read a legacy export, run the same QC, keep legacy IDs and the batch in `legacy_record` (migration 0003), commit clean records under an operator account, route anomalies to review, and write a reconciliation report (counts, unique sequences, hashes, rejected, pending).
 - [x] **Task 4: Backup and restore.** `infrastructure/backup` scripts for PostgreSQL and object storage; an integration test that restores a dump into a fresh database and checks counts, hashes and project permissions.
 - [x] **Task 5: Capacity.** `tests/performance`: search p95 with 100,000 record versions; processing time for a 1 MB, 100-record text file. Results are recorded, not assumed.
-- [ ] **Task 6: Deployment.** Dockerfiles for the backend (API, worker) and web, Docker Compose for local services (PostgreSQL, MinIO, ClamAV, oauth2-proxy), and operations runbooks.
+- [x] **Task 6: Deployment.** Dockerfiles for the backend (API, worker) and web, Docker Compose for local services (PostgreSQL, MinIO, ClamAV, oauth2-proxy), and operations runbooks.

@@ -1,0 +1,44 @@
+# Rendered by the nginx image's envsubst at start-up. Only defined variables are replaced:
+# SEQUENCE_VAULT_API_UPSTREAM and SEQUENCE_VAULT_PROXY_SECRET.
+# Requests arrive from the OIDC proxy, which sets the identity header (ADR 0006).
+server {
+    listen 8080;
+    server_tokens off;
+    root /usr/share/nginx/html;
+
+    # Exactly config/processing-policy.v1.json max_file_bytes. nginx answers 413 itself;
+    # a larger value would let the API reject mid-body, which nginx reports as 502.
+    client_max_body_size 20000000;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy same-origin always;
+    add_header X-Frame-Options DENY always;
+    add_header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" always;
+
+    location /v1/ {
+        proxy_pass http://${SEQUENCE_VAULT_API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # Only this hop knows the secret, so the API trusts identity only via the proxy.
+        proxy_set_header X-Proxy-Secret "${SEQUENCE_VAULT_PROXY_SECRET}";
+        # A client-sent X-Proxy-Secret is overwritten above; never forward development login.
+        proxy_set_header X-Dev-User "";
+        proxy_read_timeout 120s;
+        proxy_request_buffering on;
+    }
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location / {
+        try_files $uri /index.html;
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy same-origin always;
+        add_header X-Frame-Options DENY always;
+        add_header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" always;
+    }
+}
