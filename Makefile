@@ -1,9 +1,37 @@
-PYTHON ?= python3
+UV ?= uv
 
-.PHONY: check-deps check
-check-deps:
-	$(PYTHON) -m pip install --require-virtualenv -r scripts/requirements.txt
+.PHONY: setup check scaffold lint typecheck test integration performance web e2e dev
+setup:
+	$(UV) sync --locked
 
-check:
-	$(PYTHON) scripts/check_scaffold.py
+check: scaffold lint typecheck test
+
+scaffold:
+	$(UV) run --locked python scripts/check_scaffold.py
 	git diff --check
+
+lint:
+	$(UV) run --locked ruff check .
+	$(UV) run --locked ruff format --check .
+	$(UV) run --locked lint-imports
+
+typecheck:
+	$(UV) run --locked mypy
+
+test:
+	$(UV) run --locked pytest
+
+integration:
+	$(UV) run --locked pytest tests/integration tests/security
+
+performance:
+	$(UV) run --locked pytest -s tests/performance
+
+web:
+	cd apps/web && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+
+e2e:
+	cd apps/web && pnpm e2e
+
+dev:
+	$(UV) run --locked python scripts/dev_stack.py

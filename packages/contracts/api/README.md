@@ -1,6 +1,6 @@
 # API implementation catalog
 
-Draft transport contract from design v1.0, section 8. Implement OpenAPI from the selected API framework and check it against this catalog.
+Transport contract from design v1.0, section 8. `openapi.json` is generated from the FastAPI application (`python -m sequence_vault.entrypoints.admin openapi`); `tests/unit/test_api_hygiene.py` fails when it is stale. The table lists the required operations; the OpenAPI file also covers the supporting endpoints the web app uses (task list, evidence document, candidate detail, resolutions, archive, cancel, reprocess, record detail, original download).
 
 | Method | Path | Required behavior |
 | --- | --- | --- |
@@ -15,3 +15,5 @@ Draft transport contract from design v1.0, section 8. Implement OpenAPI from the
 | GET | `/v1/records/{id}/export` | Explicit version, authorized FASTA, escaped header |
 
 Errors include `code`, `message`, `request_id`, `details`, and `retryable`. Use 400 malformed, 403 forbidden, 409 revision/business conflict, 413 limits, 422 unacceptable content, and 429 rate limit. Batch commits return COMMITTED, ALREADY_COMMITTED, CONFLICT, or FAILED per item. Reauthorize originals and evidence before issuing short-lived links.
+
+Authentication follows ADR 0006: an OIDC proxy supplies the identity header, state-changing requests carry `X-Requested-With: sequence-vault`, and candidate edits send the revision as `If-Match` (`428` when missing).

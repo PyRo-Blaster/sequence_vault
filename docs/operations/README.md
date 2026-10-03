@@ -5,3 +5,10 @@ Add deployment, incident response, policy/model/parser rollout and rollback, ret
 Before launch, document source/evidence download authorization, parser CPU/memory/time/network isolation, antivirus behavior, short-lived credentials, and organization-approved model region/retention/training/deletion settings. Fail closed when scanning or AI approval is unavailable. Ordinary telemetry may contain IDs, counts, durations, and error codes, not research sequences.
 
 The proposed RPO is 24 hours and RTO is 8 hours; validate these with a recovery exercise. Policy rollbacks apply to new runs and never rewrite historical publication. Legacy cutover needs a read-only snapshot, dry run, full reconciliation, incremental freeze/sync, and preservation of records created after cutover during rollback.
+
+## Runbooks
+
+- [Deployment and incidents](deployment.md): installation, releases and rollback, monitoring, incident playbooks.
+- [Backup and restore](backup-and-restore.md): schedule, restore procedure, exercise log.
+- [Capacity](capacity.md): measured search and processing budgets.
+- [Legacy migration](../../tools/legacy_migration/README.md): dry run, import, reconciliation, cutover.

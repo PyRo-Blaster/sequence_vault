@@ -1,0 +1,21 @@
+# Build contexts get source and contracts only: no secrets, research data or local state.
+.git
+.env
+.env.*
+!.env.example
+**/__pycache__
+**/*.py[cod]
+.venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+**/node_modules
+apps/web/dist
+apps/web/test-results
+apps/web/playwright-report
+.local
+uploads
+evidence
+benchmark-data
+legacy-exports
+tests

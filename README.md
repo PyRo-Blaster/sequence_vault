@@ -4,9 +4,20 @@ Internal protein sequence import, evidence review, and quality control platform.
 
 ## Project status
 
-This repository is an architecture scaffold based on the [v1.0 design specification](docs/design/Protein_Sequence_App_Design_v1.0_EN.md). Product features, database migrations, runtime integrations, and benchmark targets are not implemented or verified yet. The specification is the source of truth; the folders below provide implementation boundaries.
+Phases P1–P7 of the [implementation plan](docs/implementation-plan.md) are implemented on the v1.0 [design specification](docs/design/Protein_Sequence_App_Design_v1.0_EN.md), which remains the source of truth:
 
-Baseline: a Chinese-language TypeScript web interface, a modular Python backend with separate processing workers, PostgreSQL, and S3-compatible object storage. Frameworks, enterprise authentication, queue infrastructure, and approved model providers remain explicit implementation decisions.
+- **Backend.** A Python backend (API and workers) on PostgreSQL and S3-compatible storage. It covers sandboxed FASTA, TXT, DOCX, CSV, XLSX and text-PDF parsing, deterministic QC, review and per-item commit.
+- **Web app.** A Chinese-language React app.
+- **Operations.** Legacy migration, backup and restore, and deployment images.
+
+**Before the pilot.** These need organization decisions or production infrastructure:
+
+- the identity provider;
+- the approved model endpoint (AI assist is off by default);
+- the real frozen acceptance set;
+- a capacity and restore exercise on production-like hardware.
+
+Runbooks: [docs/operations](docs/operations/README.md).
 
 ## Repository layout
 
@@ -33,17 +44,21 @@ sequence_vault/
 
 Every reserved directory has a README or Python package marker explaining its purpose. See [architecture and dependency rules](docs/architecture.md), [workflow diagrams](docs/workflow.md), the [implementation plan and stack](docs/implementation-plan.md), [development phases](docs/roadmap.md), and [contribution guidance](CONTRIBUTING.md).
 
-## Check the scaffold
+## Check the repository
 
-Requires Python 3.12 or newer. The checks use the pinned JSON Schema validator in `scripts/requirements.txt`; install it into a virtual environment first.
+Requires [uv](https://docs.astral.sh/uv/) 0.8.17, plus PostgreSQL 16+ server binaries or `SEQUENCE_VAULT_TEST_DATABASE_URL` for the database suites, and Node 22 with pnpm for the web app. uv installs the Python version in `.python-version` (3.12) when it is missing.
 
 ```sh
-python3 -m venv .venv && . .venv/bin/activate
-make check-deps
-make check
+make setup        # create .venv from uv.lock
+make check        # scaffold checks, ruff, import-linter layers, mypy, unit tests
+make integration  # PostgreSQL integration, security, legacy migration and restore drill
+make performance  # capacity budgets (search p95, processing p95)
+make web          # web lint, typecheck, unit tests and build
+make e2e          # Playwright journeys against the real backend
+make dev          # local backend with a throwaway database; then `pnpm dev` in apps/web
 ```
 
-This validates the synthetic examples against the draft JSON Schemas, checks that the schemas reject states the design forbids, and checks cross-example span consistency, QC registry invariants, Python syntax, required architecture paths, and whitespace errors. It does not validate product behavior or satisfy the design's acceptance criteria. CI runs the same command. No application server is available at this stage.
+CI runs all of these, and also builds and smoke-tests the container images.
 
 ## Design constraints
 
