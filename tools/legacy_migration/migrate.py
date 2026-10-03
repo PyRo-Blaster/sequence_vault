@@ -47,7 +47,11 @@ def main(argv: list[str] | None = None) -> int:
         print("Unknown project or operator.", file=sys.stderr)
         return 2
     migration = LegacyMigration(
-        container.uow, container.store, container.scanner, container.registry
+        container.uow,
+        container.store,
+        container.scanner,
+        container.registry,
+        max_residues=container.policy.limits.max_residues_per_sequence,
     )
     try:
         report = migration.run(

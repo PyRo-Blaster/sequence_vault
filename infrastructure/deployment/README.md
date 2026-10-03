@@ -13,6 +13,7 @@ Two images:
   - An OIDC proxy in front of the web container sets `X-Forwarded-Email` and must replace any client-sent value.
   - Only the web container knows `SEQUENCE_VAULT_PROXY_SECRET`. The API is reachable only from it.
   - nginx clears `X-Dev-User`.
+- **HTTPS.** Serve the sign-in proxy over HTTPS (and set `OAUTH2_PROXY_COOKIE_SECURE=true`). Browsers expose `crypto.subtle`, which the web app uses to hash uploads before sending them, only on HTTPS pages or `localhost`. Over plain HTTP the upload page reports that HTTPS is required.
 - **Upload size.** nginx `client_max_body_size` equals the policy's `max_file_bytes` (`tests/unit/test_deployment.py`). A larger value makes over-limit uploads surface as 502.
 - **Parser isolation (ADR 0003).**
   - Workers run parsers in a subprocess with resource limits and an empty environment.

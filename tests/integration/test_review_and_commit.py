@@ -23,14 +23,17 @@ def world(engine: Engine) -> World:
     return World(engine)
 
 
+MAX_RESIDUES = 100_000
+
+
 class Setup:
     def __init__(self, world: World) -> None:
         self.world = world
         self.project = world.project("Antibodies")
         self.alice = world.user("alice", {self.project: ["uploader", "reviewer"]})
         self.bob = world.user("bob", {self.project: ["uploader"]})
-        self.review = ReviewService(world.uow, world.registry)
-        self.commits = CommitService(world.uow, world.registry)
+        self.review = ReviewService(world.uow, world.registry, max_residues=MAX_RESIDUES)
+        self.commits = CommitService(world.uow, world.registry, max_residues=MAX_RESIDUES)
 
     def approved(
         self, records: list[tuple[str, str]], project: str | None = None, actor: Actor | None = None
@@ -216,3 +219,17 @@ def test_rejected_and_archived_candidates_settle_the_task(s: Setup, engine: Engi
     with SqlUnitOfWork(engine) as uow:
         row = uow.candidates.get(cid)
     assert row is not None and row.candidate.status.value == "REJECTED"
+
+
+def test_the_residue_limit_holds_for_edits_and_commits(s: Setup) -> None:
+    """Typed sequences cannot exceed the limit, and nothing over it is ever published (B2)."""
+    _, (cid,) = s.approved([("Long", "MKTAYIAKQR")])
+    with pytest.raises(InvalidRequest) as error:
+        s.review.revise_sequence(
+            s.alice, cid, 1, reason="typed", typed_sequence="MKTAYIAKQR" * 10_001
+        )
+    assert error.value.code == "sequence_limit"
+    tighter = CommitService(s.world.uow, s.world.registry, max_residues=9)
+    (outcome,) = tighter.commit(s.alice, "k1", [CommitItem(cid, 1)])
+    assert (outcome.status, outcome.reason) == (CommitStatus.FAILED, "sequence_limit")
+    assert s.world.count("record_version") == 0

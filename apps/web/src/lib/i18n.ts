@@ -110,6 +110,7 @@ export const commitReason: Record<string, string> = {
   stale_revision: "批准对应的版本已过期，请重新审核",
   qc_version_changed: "质控规则版本已更新，请重新校验",
   blocking_issues: "仍有阻断问题",
+  sequence_limit: "序列超过长度上限（100,000 残基）",
   not_protein: "分子类型未确认为蛋白质",
   name_missing: "尚未选择名称",
   needs_version_decision: "同名记录需要明确的版本决定",
@@ -138,6 +139,10 @@ export const errors: Record<string, string> = {
   file_too_large: "文件超过大小上限。",
   unsupported_format: "不支持此文件类型。",
   checksum_mismatch: "上传内容与声明的大小或校验和不一致。",
+  upload_complete: "上传已完成，不能再更改文件内容。",
+  sequence_limit: "序列超过长度上限（100,000 残基）。",
+  insecure_context:
+    "当前页面不是 HTTPS 安全连接，浏览器无法计算文件校验和。请通过 HTTPS 访问本系统。",
   task_cancelled: "任务已取消。",
   rate_limited: "请求过于频繁，请稍后再试。",
 };

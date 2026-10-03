@@ -173,7 +173,11 @@ class SqlFiles:
     def mark_uploaded(self, file_id: str, byte_count: int, sha256: str) -> None:
         self.c.execute(
             update(t.source_file)
-            .where(t.source_file.c.id == file_id)
+            .where(
+                t.source_file.c.id == file_id,
+                # Never move a scanned file back to "uploaded".
+                t.source_file.c.security_status.in_(["awaiting_upload", "uploaded"]),
+            )
             .values(byte_count=byte_count, sha256=sha256, security_status="uploaded")
         )
 

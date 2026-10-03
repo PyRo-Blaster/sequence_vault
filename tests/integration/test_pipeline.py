@@ -14,7 +14,7 @@ from sequence_vault.adapters.persistence import tables as t
 from sequence_vault.adapters.security.clamd import EICAR
 from sequence_vault.application.authorization import Actor
 from sequence_vault.application.commit import CommitItem, CommitStatus
-from sequence_vault.application.errors import InvalidRequest, LimitExceeded
+from sequence_vault.application.errors import Conflict, InvalidRequest, LimitExceeded
 from sequence_vault.application.ports import Job, ScannerUnavailable, ScanVerdict
 from sequence_vault.entrypoints.bootstrap import Container, build
 from sequence_vault.settings import Settings
@@ -157,8 +157,9 @@ def test_t15_declarations_are_enforced_before_processing(env: Env) -> None:
     with pytest.raises(LimitExceeded):
         env.app.uploads.create(env.alice, env.project, "big.fasta", 30_000_000, "a" * 64)
     row = env.app.uploads.create(env.alice, env.project, "a.fasta", len(data), "b" * 64)
-    env.app.uploads.put_content(env.alice, row.file_id, data)
     with pytest.raises(InvalidRequest, match="do not match"):
+        env.app.uploads.put_content(env.alice, row.file_id, data)
+    with pytest.raises(Conflict, match="content first"):
         env.app.uploads.complete(env.alice, row.file_id)
 
 

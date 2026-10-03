@@ -150,10 +150,25 @@ def _finish(
     return replace(row, candidate=updated)
 
 
+def residue_count(text: str) -> int:
+    """Residues in a sequence as typed or exported: every character except whitespace."""
+    return sum(1 for c in text if not c.isspace())
+
+
 class ReviewService:
-    def __init__(self, uow_factory: UnitOfWorkFactory, registry: QcRegistry) -> None:
+    def __init__(
+        self, uow_factory: UnitOfWorkFactory, registry: QcRegistry, *, max_residues: int
+    ) -> None:
         self.uow_factory = uow_factory
         self.registry = registry
+        self.max_residues = max_residues
+
+    def _check_length(self, residues: int) -> None:
+        if residues > self.max_residues:
+            raise InvalidRequest(
+                f"A sequence of {residues} residues exceeds the limit of {self.max_residues}.",
+                code="sequence_limit",
+            )
 
     def rename(self, actor: Actor, candidate_id: str, revision: int, value: str) -> CandidateRow:
         value = value.strip()
@@ -187,6 +202,8 @@ class ReviewService:
         typed_sequence: str | None = None,
         fragment: bool = False,
     ) -> CandidateRow:
+        if typed_sequence is not None:
+            self._check_length(residue_count(typed_sequence))
         with self.uow_factory() as uow:
             row = load_candidate(uow, actor, candidate_id, Action.EDIT)
             blocks, context = qc_inputs(uow, row, fragment=fragment)
@@ -194,6 +211,7 @@ class ReviewService:
                 qc = evaluate_typed(self.registry, typed_sequence, context)
             else:
                 qc = evaluate_spans(self.registry, blocks, spans, context)
+                self._check_length(len(qc.normalized.sequence) if qc.normalized else 0)
             qc = with_publication_issues(uow, self.registry, row, row.candidate.name, qc)
             with domain_errors():
                 updated = row.candidate.revise_sequence(

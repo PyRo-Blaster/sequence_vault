@@ -117,12 +117,20 @@ class UploadService:
     def put_content(self, actor: Actor, file_id: str, data: bytes) -> FileRow:
         with self.uow_factory() as uow:
             row = self._file(uow, actor, file_id, Action.UPLOAD)
-        if row.security_status not in {"awaiting_upload", "uploaded"}:
+            completed = uow.tasks.get_by_file(file_id) is not None
+        if completed or row.security_status not in {"awaiting_upload", "uploaded"}:
             raise Conflict("The upload is already complete.", code="upload_complete")
         if len(data) > row.declared_bytes or len(data) > self.max_bytes:
             raise LimitExceeded("The content is larger than declared.", code="file_too_large")
-        self.store.put(row.object_key, data)
         digest = hashlib.sha256(data).hexdigest()
+        # Only the declared bytes are ever stored, so the content cannot change after
+        # completion or under the scanner, and stored objects stay write-once.
+        if len(data) != row.declared_bytes or digest != row.declared_sha256:
+            raise InvalidRequest(
+                "The uploaded bytes do not match the declared size and SHA-256.",
+                code="checksum_mismatch",
+            )
+        self.store.put(row.object_key, data)
         with self.uow_factory() as uow:
             uow.files.mark_uploaded(file_id, len(data), digest)
             uow.commit()

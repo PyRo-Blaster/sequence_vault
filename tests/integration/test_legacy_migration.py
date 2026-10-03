@@ -71,7 +71,11 @@ class Migration:
     def __init__(self, env: Env) -> None:
         self.env = env
         self.service = LegacyMigration(
-            env.app.uow, env.app.store, env.app.scanner, env.app.registry
+            env.app.uow,
+            env.app.store,
+            env.app.scanner,
+            env.app.registry,
+            max_residues=env.app.policy.limits.max_residues_per_sequence,
         )
         self.operator = env.world.user("operator", {env.project: ["uploader", "reviewer"]})
 
@@ -263,3 +267,15 @@ def test_the_command_line_tool(
     written = json.loads(report.read_text(encoding="utf-8"))
     assert written["counts"]["committed"] == 2
     assert PROTEIN_A not in report.read_text(encoding="utf-8")
+
+
+def test_rows_over_the_residue_limit_are_rejected(m: Migration, engine: Engine) -> None:
+    """Legacy rows obey the same 100,000-residue limit as uploads (B2)."""
+    rows = [
+        {"legacy_id": "L-1", "name": "Fits", "sequence": PROTEIN_A},
+        {"legacy_id": "L-2", "name": "Huge", "sequence": "MKTAYIAKQR" * 20_000},
+    ]
+    report = m.run(export(rows))
+    assert report["rejected"] == [{"index": 1, "legacy_id": "L-2", "reason": "sequence_limit"}]
+    assert report["counts"]["committed"] == 1 and report["balanced"]
+    assert count(engine, t.record_version) == 1

@@ -34,7 +34,12 @@ from sequence_vault.application.ports import (
     UnitOfWork,
     UnitOfWorkFactory,
 )
-from sequence_vault.application.review import ReviewService, settle_task, with_publication_issues
+from sequence_vault.application.review import (
+    ReviewService,
+    residue_count,
+    settle_task,
+    with_publication_issues,
+)
 from sequence_vault.domain.candidate import Candidate, CandidateStatus
 from sequence_vault.domain.extraction import Name
 from sequence_vault.domain.naming import name_key
@@ -116,7 +121,7 @@ def _timestamp(value: Any) -> datetime:
     return parsed
 
 
-def read_export(data: bytes, legacy_project: str) -> LegacyExport:
+def read_export(data: bytes, legacy_project: str, *, max_residues: int) -> LegacyExport:
     """Read the rows of one legacy project. Rows that cannot be traced or read are rejected
     with a reason; everything else is kept as exported, for QC to judge."""
     try:
@@ -158,6 +163,9 @@ def read_export(data: bytes, legacy_project: str) -> LegacyExport:
             continue
         if hint not in MOLECULE_HINTS:
             rejected.append(Rejected(index, legacy_id, "unknown_molecule_type"))
+            continue
+        if residue_count(sequence) > max_residues:
+            rejected.append(Rejected(index, legacy_id, "sequence_limit"))
             continue
         try:
             created = None if item.get("created_at") is None else _timestamp(item["created_at"])
@@ -262,13 +270,16 @@ class LegacyMigration:
         store: ObjectStore,
         scanner: Scanner,
         registry: QcRegistry,
+        *,
+        max_residues: int,
     ) -> None:
         self.uow_factory = uow_factory
         self.store = store
         self.scanner = scanner
         self.registry = registry
-        self.review = ReviewService(uow_factory, registry)
-        self.commits = CommitService(uow_factory, registry)
+        self.max_residues = max_residues
+        self.review = ReviewService(uow_factory, registry, max_residues=max_residues)
+        self.commits = CommitService(uow_factory, registry, max_residues=max_residues)
 
     def run(
         self,
@@ -280,7 +291,7 @@ class LegacyMigration:
         *,
         dry_run: bool,
     ) -> Json:
-        export = read_export(data, legacy_project)
+        export = read_export(data, legacy_project, max_residues=self.max_residues)
         with self.uow_factory() as uow:
             roles = uow.members.roles(operator.user_id, project_id)
             authorize(roles, Action.COMMIT)

@@ -37,6 +37,7 @@ class Api:
         )
         admin = Provisioning(engine)
         tenant = admin.tenant("Dept")
+        self.tenant = tenant
         self.project = admin.project(tenant, "Antibodies")
         self.other_project = admin.project(tenant, "Enzymes")
         for subject, roles, project in (
@@ -162,6 +163,32 @@ def test_full_fasta_journey_over_http(api: Api) -> None:
     assert_error(api.call("GET", f"/v1/records/{record_id}/export"), 400, "malformed_request")
     original = api.call("GET", f"/v1/files/{job['file_id']}/content")
     assert original.content.startswith(b">A1 heavy")
+
+
+def test_upload_content_cannot_change_after_completion(api: Api, engine: Engine) -> None:
+    """Only the declared bytes are stored, and nothing is accepted after /complete (B1)."""
+    good, swapped = b">A\nMKTAYIAKQR\n", b">A\nMKTAYIAKQW\n"
+    admin = Provisioning(engine)
+    admin.grant(api.project, admin.user(api.tenant, "uma", "Uma"), Role.UPLOADER)
+    declared = api.call(
+        "POST",
+        "/v1/uploads",
+        json={
+            "project_id": api.project,
+            "file_name": "a.fasta",
+            "byte_count": len(good),
+            "sha256": hashlib.sha256(good).hexdigest(),
+        },
+    )
+    file_id = declared.json()["file_id"]
+    content = f"/v1/uploads/{file_id}/content"
+    assert_error(api.call("PUT", content, content=swapped), 422, "checksum_mismatch")
+    assert api.call("PUT", content, content=good).status_code == 204
+    assert api.call("POST", f"/v1/uploads/{file_id}/complete").status_code == 202
+    assert_error(api.call("PUT", content, "uma", content=swapped), 409, "upload_complete")
+    assert_error(api.call("PUT", content, content=good), 409, "upload_complete")
+    api.worker.run_until_idle()
+    assert api.call("GET", f"/v1/files/{file_id}/content").content == good
 
 
 def test_identity_and_request_hygiene(api: Api) -> None:

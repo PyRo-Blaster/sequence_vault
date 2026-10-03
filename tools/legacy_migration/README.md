@@ -27,6 +27,7 @@ The input is a JSON export from the read-only legacy snapshot. The tool imports 
   - shares its legacy ID with another row (`duplicate_legacy_id`);
   - has a non-text field (`invalid_field`);
   - has an unknown molecule type (`unknown_molecule_type`);
+  - has more residues than the policy limit, 100,000 by default (`sequence_limit`);
   - has a timestamp without a zone (`invalid_timestamp`).
 
   Rejected rows are listed in the report, never dropped silently.

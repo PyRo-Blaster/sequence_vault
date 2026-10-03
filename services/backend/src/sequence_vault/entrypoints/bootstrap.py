@@ -145,7 +145,7 @@ def build(settings: Settings, *, engine: Engine | None = None) -> Container:
         uploads=UploadService(
             uow, store, policy.limits.max_file_bytes, accepted_extensions(enabled_formats())
         ),
-        reviews=ReviewService(uow, registry),
-        commits=CommitService(uow, registry),
+        reviews=ReviewService(uow, registry, max_residues=policy.limits.max_residues_per_sequence),
+        commits=CommitService(uow, registry, max_residues=policy.limits.max_residues_per_sequence),
         tasks=TaskService(uow),
     )

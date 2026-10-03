@@ -53,9 +53,12 @@ class _Stop(Exception):
 
 
 class CommitService:
-    def __init__(self, uow_factory: UnitOfWorkFactory, registry: QcRegistry) -> None:
+    def __init__(
+        self, uow_factory: UnitOfWorkFactory, registry: QcRegistry, *, max_residues: int
+    ) -> None:
         self.uow_factory = uow_factory
         self.registry = registry
+        self.max_residues = max_residues
 
     def commit(self, actor: Actor, key: str, items: Sequence[CommitItem]) -> list[CommitOutcome]:
         """Commit each item in its own transaction; one failure never affects another item."""
@@ -125,6 +128,9 @@ class CommitService:
             raise _Stop(CommitStatus.CONFLICT, "qc_version_changed")
         if qc.blocked or qc.normalized is None or not qc.normalized.sequence:
             raise _Stop(CommitStatus.CONFLICT, "blocking_issues")
+        if len(qc.normalized.sequence) > self.max_residues:
+            # Every path to publication ends here, whatever created the candidate.
+            raise _Stop(CommitStatus.FAILED, "sequence_limit")
         protein_confirmed = candidate.resolutions.get("QC11") == "confirm_molecule_type"
         if qc.molecule_type is not MoleculeType.PROTEIN and not protein_confirmed:
             raise _Stop(CommitStatus.CONFLICT, "not_protein")
