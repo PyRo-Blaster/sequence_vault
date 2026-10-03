@@ -104,3 +104,14 @@ def test_heading_labels_are_not_part_of_the_name() -> None:
         3,
         11,
     )
+
+
+def test_t09_a_named_entry_without_a_sequence_waits_for_content() -> None:
+    assert summary(run(b"Name: Ab1\n", "Ab1.txt", fasta=False)) == [
+        ([("Ab1", "heading")], "unambiguous", 0)
+    ]
+    # Front-matter identifiers are not entries; a labelled name with its sequence is one.
+    front_matter = run(b"ID: 12345\n\nMKTAYIAKQRQISFVKSHFSRQ\n", "notes.txt", fasta=False)
+    assert [len(r["sequence_spans"]) for r in front_matter["records"]] == [1]
+    together = run("名称：Ab1\nMKTAYIAKQRQISF\n".encode(), "a.txt", fasta=False)
+    assert summary(together) == [([("Ab1", "heading")], "unambiguous", 1)]

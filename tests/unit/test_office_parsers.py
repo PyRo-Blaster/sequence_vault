@@ -143,6 +143,15 @@ def test_csv_rows_pair_names_with_sequences() -> None:
     ]
 
 
+def test_explicit_sequence_columns_keep_short_values_for_qc() -> None:
+    document = parse(parse_csv, b"name,sequence\nAb1,ACDE\nAb2,\nAb3,see attached\n")
+    assert [(r["names"][0]["value"], len(r["sequence_spans"])) for r in records(document)] == [
+        ("Ab1", 1),
+        ("Ab2", 0),
+        ("Ab3", 1),
+    ]
+
+
 def test_t06_pdf_numbering_and_page_headers_are_kept_for_qc() -> None:
     page = [
         (72, 800, "Confidential draft - page 1"),

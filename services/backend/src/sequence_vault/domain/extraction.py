@@ -36,12 +36,19 @@ def check_extraction(
         for name in record.names:
             if name.evidence is None:
                 continue
-            text = blocks.get(name.evidence.block_id)
+            evidence = name.evidence
+            text = blocks.get(evidence.block_id)
             if text is None:
                 problems.append(
-                    f"record {index}: name evidence block {name.evidence.block_id!r} does not exist"
+                    f"record {index}: name evidence block {evidence.block_id!r} does not exist"
                 )
-            elif text[name.evidence.start : name.evidence.end] != name.value:
+            elif not 0 <= evidence.start < evidence.end <= len(text):
+                # Checked before slicing: Python clips out-of-range slices silently.
+                problems.append(
+                    f"record {index}: name evidence [{evidence.start}, {evidence.end}) is "
+                    f"outside block {evidence.block_id!r} of length {len(text)}"
+                )
+            elif text[evidence.start : evidence.end] != name.value:
                 problems.append(f"record {index}: name {name.value!r} does not match its evidence")
         if record.spans:
             problems.extend(

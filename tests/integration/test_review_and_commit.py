@@ -87,6 +87,20 @@ def test_t11_retries_with_the_same_key_return_the_same_result(s: Setup) -> None:
     assert s.commit(cid, revision=2, key="key-1").reason == "idempotency_key_reused"
 
 
+def test_a_replayed_key_is_authorized_again(s: Setup) -> None:
+    """A cached result is returned only to someone who may commit the candidate now."""
+    _, (cid,) = s.approved([("A1", "MKTAYIAKQR")])
+    assert s.commit(cid, key="known-key").status is CommitStatus.COMMITTED
+    viewer = s.world.user("victor", {s.project: ["viewer"]})
+    outsider = s.world.user("olga", {s.world.project("Enzymes"): ["reviewer"]})
+    for actor, reason in ((viewer, "forbidden"), (outsider, "not_found"), (s.bob, "forbidden")):
+        replay = s.commit(cid, key="known-key", actor=actor)
+        assert (replay.status, replay.reason) == (CommitStatus.FAILED, reason)
+        assert replay.record_id is None and replay.record_version_id is None
+    s.world.revoke(s.alice, s.project)
+    assert s.commit(cid, key="known-key").reason == "not_found"
+
+
 def test_t12_concurrent_edits_conflict_and_edits_void_approval(s: Setup) -> None:
     _, (cid,) = s.world.fasta(s.project, s.alice, [("A1", "MKTAYIAKQR")])
     s.review.rename(s.alice, cid, 1, "A1 heavy")

@@ -4,7 +4,7 @@ tests also validate candidate payloads against that schema."""
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Model(BaseModel):
@@ -104,7 +104,8 @@ class CandidateWire(Model):
     schema_version: Literal["1.0"]
     candidate_id: str
     run_id: str
-    extraction_record_index: int | None = None
+    # Optional in the contract: omitted (never null) for legacy and split candidates.
+    extraction_record_index: int | None = Field(default=None, exclude_if=lambda v: v is None)
     revision: int
     name: Name | None
     extracted_names: list[Name]

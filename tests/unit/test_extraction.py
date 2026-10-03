@@ -24,6 +24,14 @@ def test_reports_name_that_does_not_match_its_evidence() -> None:
     assert "does not match its evidence" in problem
 
 
+def test_reports_name_evidence_outside_its_block() -> None:
+    blocks = {"h1": "Ab1"}
+    for start, end in ((0, 999), (-1, 3), (2, 2)):
+        name = Name(blocks["h1"][max(start, 0) : end], "heading", BlockSpan("h1", start, end))
+        (problem,) = check_extraction(blocks, [record((name,), ())])
+        assert "outside block 'h1'" in problem
+
+
 def test_reports_two_records_claiming_the_same_residues() -> None:
     first = record((), (SequenceSpan("p1", 0, 6, 1),))
     second = record((), (SequenceSpan("p1", 4, 10, 1),))

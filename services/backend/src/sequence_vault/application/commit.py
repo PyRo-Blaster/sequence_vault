@@ -86,6 +86,17 @@ class CommitService:
             return outcome
 
     def _apply(self, uow: UnitOfWork, actor: Actor, key: str, item: CommitItem) -> CommitOutcome:
+        # Authorize first: a replayed key must not reveal a result to someone who could
+        # not commit the candidate now.
+        row = uow.candidates.get(item.candidate_id, for_update=True)
+        if row is None or row.tenant_id != actor.tenant_id:
+            raise _Stop(CommitStatus.FAILED, "not_found")
+        roles = uow.members.roles(actor.user_id, row.project_id)
+        if not roles:
+            raise _Stop(CommitStatus.FAILED, "not_found")
+        if not roles & PERMISSIONS[Action.COMMIT]:
+            raise _Stop(CommitStatus.FAILED, "forbidden")
+
         stored = uow.commits.get(key, item.candidate_id)
         if stored is not None:
             if stored.approved_revision != item.revision:
@@ -97,14 +108,6 @@ class CommitService:
                 record_version_id=stored.record_version_id,
             )
 
-        row = uow.candidates.get(item.candidate_id, for_update=True)
-        if row is None or row.tenant_id != actor.tenant_id:
-            raise _Stop(CommitStatus.FAILED, "not_found")
-        roles = uow.members.roles(actor.user_id, row.project_id)
-        if not roles:
-            raise _Stop(CommitStatus.FAILED, "not_found")
-        if not roles & PERMISSIONS[Action.COMMIT]:
-            raise _Stop(CommitStatus.FAILED, "forbidden")
         candidate = row.candidate
         if candidate.status is CandidateStatus.COMMITTED:
             return CommitOutcome(item.candidate_id, CommitStatus.ALREADY_COMMITTED)

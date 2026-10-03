@@ -4,6 +4,7 @@ from typing import Any
 
 from sequence_vault.adapters.contracts import schema_errors
 from sequence_vault.adapters.parsers.docx import parse_docx
+from sequence_vault.application.contract_mapping import context_for, records_from_extraction
 from sequence_vault.application.model_assist import (
     SUMMARY_LIMIT,
     ModelAnswer,
@@ -181,3 +182,36 @@ def test_clean_rule_results_skip_the_model() -> None:
     _, rules = document_and_rules(["Ab1", HEAVY], "Ab1.docx")
     assert not needs_model("docx", rules)
     assert not needs_model("fasta", {"records": [], "coverage": {"unresolved_blocks": ["x"]}})
+
+
+def test_detected_sequences_the_model_leaves_out_stay_unresolved() -> None:
+    """A span no record covers is reported, so QC flags the run; nothing vanishes silently."""
+    light = "DIQMTQSPSSLSASVGDRVTITC"
+    document, rules = document_and_rules(["Ab1", HEAVY, f"A second chain {light} was made."])
+    prose = next(b["block_id"] for b in document["blocks"] if light in b["raw_text"])
+    assert needs_model("docx", rules)
+    request, _, _ = payload(document, rules, "notes.docx")
+    assert ids(request, "span", light[:5])  # the prose sequence was offered to the model
+    model = FakeModel(
+        ok(
+            {
+                "records": [
+                    {
+                        "span_ids": [ids(request, "span", "EVQLV")],
+                        "name_ids": [ids(request, "name", "Ab1")],
+                        "molecule_type": "protein",
+                        "association_status": "unambiguous",
+                        "observations": [],
+                    }
+                ],
+                "unresolved_block_ids": [],
+            }
+        )
+    )
+    assisted = assist(model, document, rules, "notes.docx", lambda n, d: check(n, d))
+    coverage = assisted.result["coverage"]
+    assert assisted.model_version == "claude-opus-5-5"
+    assert prose in coverage["unresolved_blocks"]
+    assert any("not assigned to any record" in w for w in coverage["warnings"])
+    (record,) = records_from_extraction(assisted.result)
+    assert context_for(record, {**document, "coverage": coverage}).coverage_risk  # QC08

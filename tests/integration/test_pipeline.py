@@ -121,6 +121,17 @@ def test_t09_name_without_sequence_waits_for_content(env: Env) -> None:
         assert c.execute(select(t.sequence_entity)).first() is None
 
 
+def test_named_entries_and_short_column_values_are_never_dropped(env: Env) -> None:
+    """A name-only TXT entry waits for content; a short value in a sequence column is kept."""
+    name_only = env.upload("Ab1.txt", b"Name: Ab1\n")
+    short = env.upload("peptides.csv", b"name,sequence\nAb1,ACDE\n")
+    env.worker.run_until_idle()
+    (pending,) = env.candidates(name_only)
+    assert (pending["status"], pending["name"]) == ("PENDING_CONTENT", "Ab1")
+    (peptide,) = env.candidates(short)
+    assert (peptide["status"], peptide["name"]) == ("NEEDS_REVIEW", "Ab1")
+
+
 def _zip() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:

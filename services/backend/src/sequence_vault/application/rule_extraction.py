@@ -179,6 +179,16 @@ def _paragraph_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
             records.append(_record(names, [span], "unambiguous" if names else "ambiguous"))
         elif _RESIDUE_RUN.search(raw):
             unresolved.append(block["block_id"])
+        elif _NAME_ENTRY.match(raw) and "\n" not in raw.strip():
+            following = blocks[index + 1] if index + 1 < len(blocks) else None
+            claimed = (
+                following is not None
+                and _adjacent(block, following)
+                and is_sequence_like(following["raw_text"])
+            )
+            if not claimed:
+                # An explicitly named entry without a sequence waits for content (T09).
+                records.append(_record(_heading(block, raw), [], "unambiguous"))
         index += 1
     return records
 
@@ -197,6 +207,12 @@ _NAME_KEYS = (
     "sample",
     "antibody",
     "construct",
+)
+# Prose labels that announce an entry by name ("Name: Ab1", or 名称 with either colon).
+# Narrower than the table keys: identifiers such as "ID:" or 编号 appear in front matter.
+_NAME_ENTRY = re.compile(
+    r"^\s*(?:名称|名字|克隆|抗体|构建体|name|clone|antibody|construct)\s*[:\uff1a]\s*\S",
+    re.IGNORECASE,
 )
 _SEQUENCE_KEYS = ("序列", "sequence", "seq")
 _CHAIN_KEYS = ("重链", "轻链", "heavy", "light", "vh", "vl", "hc", "lc")
@@ -275,7 +291,10 @@ def _table_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
             )
             for col in sequence_columns:
                 cell = grid.get((row, col))
-                if cell is not None and is_sequence_like(cell["raw_text"]):
+                filled = cell is not None and bool(cell["raw_text"].strip())
+                # An explicitly labelled sequence column keeps every value, however short;
+                # QC decides what it is. Unresolved cells (formulas) are already reported.
+                if cell is not None and filled and cell["block_id"] not in unresolved:
                     record = _record(
                         list(names),
                         [_whole_span(cell)],
@@ -291,10 +310,8 @@ def _table_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
                             }
                         )
                     records.append(record)
-                elif cell is None and names and len(sequence_columns) == 1:
+                elif not filled and names and len(sequence_columns) == 1:
                     records.append(_record(list(names), [], "unambiguous"))
-                elif cell is not None and _RESIDUE_RUN.search(cell["raw_text"]):
-                    unresolved.append(cell["block_id"])
     return records
 
 

@@ -205,9 +205,13 @@ def _preview(document: Json, span: Json) -> str:
 
 
 def resolve(
-    answer: Json, document: Json, spans: list[Json], names: list[Json]
+    answer: Json, document: Json, rule_result: Json, spans: list[Json], names: list[Json]
 ) -> tuple[Json | None, str | None]:
-    """Turn an ID answer into an extraction result, or explain why it cannot be used."""
+    """Turn an ID answer into an extraction result, or explain why it cannot be used.
+
+    Every detected span stays accounted for whatever the model says (design section 4):
+    a span no record covers, and a block the rules could not resolve that the answer
+    leaves untouched, are reported as unresolved, so QC flags the run for review."""
     span_by_id = {s["id"]: s for s in spans}
     name_by_id = {n["id"]: n for n in names}
     blocks = {b["block_id"]: b["raw_text"] for b in document["blocks"]}
@@ -273,10 +277,31 @@ def resolve(
     unresolved = [b for b in answer.get("unresolved_block_ids", []) if b in blocks]
     if problems:
         return None, "; ".join(problems)
+    claimed = [span_by_id[i] for i in used]
+    missed = [
+        s
+        for s in spans
+        if not any(
+            c["block_id"] == s["block_id"] and c["start"] < s["end"] and s["start"] < c["end"]
+            for c in claimed
+        )
+    ]
+    claimed_blocks = {c["block_id"] for c in claimed}
+    rules_open = set(rule_result["coverage"]["unresolved_blocks"]) - claimed_blocks
     coverage = dict(document["coverage"])
     coverage["unresolved_blocks"] = sorted(
-        set(coverage["unresolved_blocks"]) | set(unresolved), key=list(blocks).index
+        set(coverage["unresolved_blocks"])
+        | set(unresolved)
+        | {s["block_id"] for s in missed}
+        | rules_open,
+        key=list(blocks).index,
     )
+    if missed:
+        coverage["warnings"] = [
+            *coverage.get("warnings", []),
+            f"{len(missed)} detected sequence(s) were not assigned to any record; "
+            "check the original.",
+        ]
     result = {
         "schema_version": "1.0",
         "file_id": document["file_id"],
@@ -303,7 +328,7 @@ def assist(
     result, problem = (
         (None, answer.problem)
         if answer.data is None
-        else resolve(answer.data, document, spans, names)
+        else resolve(answer.data, document, rule_result, spans, names)
     )
     if result is None and answer.problem not in {"refusal", "unavailable"}:
         repaired = model.answer(
@@ -315,7 +340,7 @@ def assist(
         result, problem = (
             (None, repaired.problem)
             if repaired.data is None
-            else resolve(repaired.data, document, spans, names)
+            else resolve(repaired.data, document, rule_result, spans, names)
         )
         answer = repaired
     if result is not None and not schema_errors("extraction-result", result):

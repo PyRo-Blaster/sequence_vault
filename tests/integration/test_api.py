@@ -1,6 +1,7 @@
 """P4 acceptance: the /v1 HTTP contract against PostgreSQL and the real worker."""
 
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -9,9 +10,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 from sequence_vault.adapters.contracts import schema_errors
-from sequence_vault.adapters.persistence.admin import Provisioning
+from sequence_vault.adapters.persistence.admin import Provisioning, SqlProjectAdmin
 from sequence_vault.api.app import create_app
-from sequence_vault.application.authorization import Role
+from sequence_vault.application.authorization import Actor, Role
+from sequence_vault.application.legacy_migration import LegacyMigration
 from sequence_vault.entrypoints.bootstrap import api_services, build
 from sequence_vault.settings import REPO_ROOT, Settings
 from sequence_vault.workers.worker import Worker
@@ -189,6 +191,35 @@ def test_upload_content_cannot_change_after_completion(api: Api, engine: Engine)
     assert_error(api.call("PUT", content, content=good), 409, "upload_complete")
     api.worker.run_until_idle()
     assert api.call("GET", f"/v1/files/{file_id}/content").content == good
+
+
+def test_legacy_candidates_match_the_candidate_contract(api: Api, engine: Engine) -> None:
+    """Legacy candidates omit extraction_record_index instead of sending null."""
+    c = api.container
+    migration = LegacyMigration(
+        c.uow,
+        c.store,
+        c.scanner,
+        c.registry,
+        max_residues=c.policy.limits.max_residues_per_sequence,
+    )
+    alice = SqlProjectAdmin(engine).user_in_tenant(api.tenant, "alice")
+    assert alice is not None
+    export = json.dumps(
+        {
+            "source_system": "LIMS",
+            "records": [
+                {"legacy_id": "L-1", "project": "Old", "name": "B", "sequence": "MKT4AYIAKQ"}
+            ],
+        }
+    ).encode()
+    report = migration.run(
+        Actor(alice, api.tenant), api.project, "e.json", export, "Old", dry_run=False
+    )
+    (pending,) = report["pending_review"]
+    body = api.call("GET", f"/v1/candidates/{pending['candidate_id']}").json()
+    assert "extraction_record_index" not in body["candidate"]
+    assert schema_errors(CONTRACTS, "candidate", body["candidate"]) == []
 
 
 def test_identity_and_request_hygiene(api: Api) -> None:
