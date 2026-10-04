@@ -39,7 +39,8 @@ export function EvidenceViewer({
   }, [focus]);
   if (!blocks.length) return <Empty description="没有可显示的证据" />;
   return (
-    <div className="sv-evidence">
+    // Scrollable, so it must be reachable from the keyboard.
+    <div className="sv-evidence" tabIndex={0} role="region" aria-label="原文证据内容">
       {blocks.map((block) => {
         const ranges = highlights
           .filter((h) => h.block_id === block.block_id)

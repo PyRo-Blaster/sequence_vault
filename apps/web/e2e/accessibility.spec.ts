@@ -13,14 +13,30 @@ async function pages(page: Page): Promise<[string, string][]> {
   const name = `a11y-${Date.now().toString(36)}.fasta`;
   await login(page, "alice@example.test");
   await page.goto("/tasks");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({ name, mimeType: "text/plain", buffer: Buffer.from(">A1\nMKTAYIAKQX\n") });
+  await page.locator('input[type="file"]').setInputFiles({
+    name,
+    mimeType: "text/plain",
+    buffer: Buffer.from(">A1\nMKTAYIAKQX\n>A2\nmktayiakqr\n>A3\nMKTAYIAKQRW\n"),
+  });
   const row = page.getByRole("row", { name: new RegExp(name) }).first();
   await expect(row.getByText("待审核")).toBeVisible({ timeout: 30_000 });
   await row.getByRole("link", { name: "审核" }).click();
   await expect(page.getByText("原文证据")).toBeVisible();
+  // Several cards, one with a chosen resolution (its tag was a contrast failure).
+  await page.getByTestId("candidate-0").getByLabel("处理 QC04").click();
+  await page.getByTitle("已确认残基含义").click();
+  await expect(page.getByTestId("candidate-0").locator(".ant-tag-success")).toBeVisible();
   const review = new URL(page.url()).pathname;
+  // A failure with the longest reason, shown in the projects quality overview.
+  const prose = `prose-${Date.now().toString(36)}.txt`;
+  await page.goto("/tasks");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: prose,
+    mimeType: "text/plain",
+    buffer: Buffer.from("The construct MKTAYIAKQRQISFVKSHFSRQ was expressed in CHO cells.\n"),
+  });
+  const failed = page.getByRole("row", { name: new RegExp(prose) }).first();
+  await expect(failed.getByText("失败")).toBeVisible({ timeout: 30_000 });
   return [
     ["alice@example.test", "/tasks"],
     ["alice@example.test", review],

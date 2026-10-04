@@ -430,6 +430,8 @@ def create_app(container: ApiServices) -> FastAPI:
         project_id: str | None = None,
         q: Annotated[str | None, Query(max_length=200)] = None,
         sequence: Annotated[str | None, Query(max_length=200_000)] = None,
+        # SHA-256 of the normalized sequence: keeps long sequences out of URLs and logs.
+        sequence_sha256: Annotated[str | None, Query(pattern="^[0-9a-f]{64}$")] = None,
         min_length: Annotated[int | None, Query(ge=0)] = None,
         max_length: Annotated[int | None, Query(ge=0)] = None,
         cursor: str | None = None,
@@ -440,6 +442,7 @@ def create_app(container: ApiServices) -> FastAPI:
             project_id=project_id,
             q=q,
             sequence=sequence,
+            sequence_hash=sequence_sha256,
             min_length=min_length,
             max_length=max_length,
             cursor=_cursor(cursor),

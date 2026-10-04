@@ -6,10 +6,18 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 
 import { App } from "./App";
+import { ApiError } from "./lib/api";
 import "./styles.css";
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { refetchOnWindowFocus: false } },
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      // A 4xx answer will not change on retry; show it at once.
+      retry: (failures, error) =>
+        !(error instanceof ApiError && error.status < 500) && failures < 3,
+    },
+  },
 });
 
 createRoot(document.getElementById("root")!).render(
@@ -41,6 +49,20 @@ createRoot(document.getElementById("root")!).render(
             blue7: "#003eb3",
             volcano7: "#871400",
             purple7: "#391085",
+            // Status tags derive their fill from the darker seed colors above, which comes
+            // out grey; pin the light fills and dark text.
+            colorSuccess: "#135200",
+            colorSuccessBg: "#f6ffed",
+            colorSuccessBorder: "#b7eb8f",
+            colorError: "#a8071a",
+            colorErrorBg: "#fff1f0",
+            colorErrorBorder: "#ffa39e",
+            colorWarning: "#874d00",
+            colorWarningBg: "#fffbe6",
+            colorWarningBorder: "#ffe58f",
+            colorInfo: "#003eb3",
+            colorInfoBg: "#e6f4ff",
+            colorInfoBorder: "#91caff",
           },
         },
       }}

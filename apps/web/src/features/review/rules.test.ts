@@ -53,5 +53,7 @@ describe("review rules", () => {
 
   it("normalizes previews like QC02", () => {
     expect(previewNormalize("mk t\nAß")).toBe("MKTAß");
+    // Same whitespace set as the server's str.isspace().
+    expect(previewNormalize("a\u0085b\u001fc\u3000d\ufeffe")).toBe("ABCD\ufeffE");
   });
 });

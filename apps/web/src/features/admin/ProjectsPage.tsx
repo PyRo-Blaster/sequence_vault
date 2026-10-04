@@ -176,7 +176,7 @@ function Quality({ projectId }: { projectId: string }) {
               </Tag>
             ))}
             {Object.entries(q.failure_codes).map(([code, n]) => (
-              <Tag key={code} color="red">
+              <Tag key={code} color="red" className="sv-tag-wrap">
                 {failure[code] ?? code} {n}
               </Tag>
             ))}

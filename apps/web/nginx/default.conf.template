@@ -1,11 +1,12 @@
 # Rendered by the nginx image's envsubst at start-up. Only defined variables are replaced:
 # SEQUENCE_VAULT_API_UPSTREAM and SEQUENCE_VAULT_PROXY_SECRET.
 # Requests arrive from the OIDC proxy, which sets the identity header (ADR 0006).
-# Hashed build assets are immutable; the app shell must be revalidated; the API sets its own.
-map $uri $sequence_vault_cache {
-    ~^/assets/ "public, max-age=31536000, immutable";
-    ~^/v1/     "";
-    default    "no-cache";
+# Hashed build assets are immutable once found (a 404 is not); the app shell must be
+# revalidated; the API sets its own. Evaluated when headers are sent, so $status is known.
+map "$status $uri" $sequence_vault_cache {
+    "~^(200|304) /assets/" "public, max-age=31536000, immutable";
+    "~^[0-9]+ /v1/"        "";
+    default                "no-cache";
 }
 
 server {
@@ -33,6 +34,8 @@ server {
         proxy_set_header X-Proxy-Secret "${SEQUENCE_VAULT_PROXY_SECRET}";
         # A client-sent X-Proxy-Secret is overwritten above; never forward development login.
         proxy_set_header X-Dev-User "";
+        # The API sends nosniff too; the server-level header is the one kept.
+        proxy_hide_header X-Content-Type-Options;
         proxy_read_timeout 120s;
         proxy_request_buffering on;
     }

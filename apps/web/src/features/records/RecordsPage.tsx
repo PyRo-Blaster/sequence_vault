@@ -16,6 +16,8 @@ import { Link } from "react-router";
 
 import { api, unwrap, type Me, type RecordSummary } from "../../lib/api";
 import { errorText } from "../../lib/i18n";
+import { InsecureContextError, sha256Hex } from "../../lib/sha256";
+import { previewNormalize } from "../review/rules";
 
 interface Filters {
   project_id?: string;
@@ -25,13 +27,36 @@ interface Filters {
   max_length?: number;
 }
 
+/** Search by the SHA-256 of the normalized sequence, so up to 100,000 residues fit in the URL
+ * and no sequence reaches access logs. Without crypto.subtle (plain HTTP) send the text. */
+async function sequenceQuery(
+  sequence: string | undefined,
+): Promise<{ sequence?: string; sequence_sha256?: string }> {
+  if (!sequence) return {};
+  const normalized = previewNormalize(sequence);
+  if (!normalized) return { sequence };
+  try {
+    const bytes = new TextEncoder().encode(normalized);
+    return { sequence_sha256: await sha256Hex(bytes.buffer as ArrayBuffer) };
+  } catch (error) {
+    if (error instanceof InsecureContextError) return { sequence: normalized };
+    throw error;
+  }
+}
+
 export function RecordsPage({ me }: { me: Me }) {
   const [filters, setFilters] = useState<Filters>({});
   const [cursor, setCursor] = useState<string | undefined>();
   const records = useQuery({
     queryKey: ["records", filters, cursor],
-    queryFn: () =>
-      unwrap(api.GET("/v1/records", { params: { query: { ...filters, cursor, limit: 50 } } })),
+    queryFn: async () => {
+      const { sequence, ...rest } = filters;
+      return unwrap(
+        api.GET("/v1/records", {
+          params: { query: { ...rest, ...(await sequenceQuery(sequence)), cursor, limit: 50 } },
+        }),
+      );
+    },
   });
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>

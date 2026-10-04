@@ -163,6 +163,7 @@ class QueryService:
         min_length: int | None,
         max_length: int | None,
         cursor: Cursor,
+        sequence_hash: str | None = None,
         limit: int,
     ) -> tuple[list[Json], str | None]:
         if project_id is not None:
@@ -174,7 +175,9 @@ class QueryService:
                 for p in self.read.projects_for_user(actor.user_id)
                 if {Role(r) for r in p["roles"]} & PERMISSIONS[Action.VIEW]
             ]
-        sha = None
+        if sequence and sequence_hash:
+            raise InvalidRequest("Search by sequence or by its SHA-256, not both.")
+        sha = sequence_hash
         if sequence:
             normalized = normalize(sequence).sequence
             if not normalized:

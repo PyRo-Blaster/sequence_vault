@@ -29,6 +29,7 @@ body { margin: 0; background: #f4f6f7; }
 .sv-page-title.ant-typography { font-size: 22px; margin: 0; }
 .sv-section-title.ant-typography { font-size: 18px; margin: 0; }
 .sv-sequence-filter { min-width: 360px; }
+.sv-tag-wrap.ant-tag { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
 .sv-tag-action.ant-btn { height: 18px; width: 18px; min-width: 18px; margin-left: 4px; padding: 0; }
 @media (max-width: 992px) { .sv-sticky { position: static; } }
 /* Phones: the header wraps and nothing is wider than the screen; tables scroll inside their card. */

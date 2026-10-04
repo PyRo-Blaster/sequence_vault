@@ -3021,6 +3021,7 @@ export interface operations {
         project_id?: string | null;
         q?: string | null;
         sequence?: string | null;
+        sequence_sha256?: string | null;
         min_length?: number | null;
         max_length?: number | null;
         cursor?: string | null;

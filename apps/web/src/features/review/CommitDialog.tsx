@@ -17,13 +17,16 @@ export function CommitDialog({
 }) {
   const queryClient = useQueryClient();
   const [key] = useState(() => crypto.randomUUID());
+  // Fixed when the dialog opens: committed items drop out of `items` after the refetch, and
+  // the preview and the result names must still describe what was submitted.
+  const [snapshot] = useState(items);
   const commit = useMutation({
     mutationFn: () =>
       unwrap(
         api.POST("/v1/commits", {
           params: { header: { "idempotency-key": key } },
           body: {
-            items: items.map((e) => ({
+            items: snapshot.map((e) => ({
               candidate_id: e.candidate.candidate_id,
               revision: e.candidate.revision,
             })),
@@ -35,10 +38,11 @@ export function CommitDialog({
       void queryClient.invalidateQueries({ queryKey: ["task", taskId] });
     },
   });
-  const ids = items.map((e) => e.candidate.candidate_id);
+  const ids = snapshot.map((e) => e.candidate.candidate_id);
   // The server plans each item as the commit will, so reuse and new records are not mixed up.
   const preview = useQuery({
     queryKey: ["commit-preview", ids],
+    enabled: !commit.data,
     queryFn: () => unwrap(api.POST("/v1/commits/preview", { body: { candidate_ids: ids } })),
   });
   const planned = preview.data?.items ?? [];
@@ -50,7 +54,7 @@ export function CommitDialog({
       p.record_action === "cancel",
   ).length;
   const names = new Map(
-    items.map((e) => [e.candidate.candidate_id, e.candidate.name?.value ?? "（未命名）"]),
+    snapshot.map((e) => [e.candidate.candidate_id, e.candidate.name?.value ?? "（未命名）"]),
   );
   const results = commit.data?.results ?? [];
   const succeeded = results.filter(

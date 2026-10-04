@@ -1,9 +1,12 @@
 import pytest
+from alembic import command
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
+from sequence_vault.adapters.persistence.migrate import migrations_dir, upgrade
 from sequence_vault.adapters.persistence.tables import metadata
 
 SEED = """
@@ -88,3 +91,26 @@ def test_uniqueness_and_consistency_constraints(engine: Engine, statement: str) 
     seed(engine)
     with pytest.raises(IntegrityError), engine.begin() as connection:
         connection.execute(text(statement))
+
+
+def test_migration_0005_stops_on_sign_in_names_differing_in_case(
+    engine: Engine, database_url: str
+) -> None:
+    """The unique lower(subject) index cannot be built over case variants: say which."""
+    config = Config(str(migrations_dir() / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    command.downgrade(config, "0004")
+    with engine.begin() as connection:
+        connection.execute(text(SEED.split("\n")[1]))
+        connection.execute(
+            text(
+                "INSERT INTO app_user VALUES ('u1', 't1', 'alice@corp', 'Alice'), "
+                "('u2', 't1', 'Alice@Corp', 'Alice 2')"
+            )
+        )
+    with pytest.raises(RuntimeError, match=r"alice@corp \(2 users\)"):
+        upgrade(database_url)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == (
+            "0004"
+        )

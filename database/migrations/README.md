@@ -14,4 +14,11 @@ SEQUENCE_VAULT_DATABASE_URL=postgresql+psycopg://user@host/db \
 
 Versions: `0001` initial schema; `0002` per-task parse options; `0003` legacy migration batches and legacy IDs; `0004` search indexes; `0005` case-insensitive unique sign-in names.
 
+**Rolling out `0005`.** Sign-in names are matched without regard to case, so `0005` adds a unique index on `lower(subject)`. If two users differ only in case, the migration stops with the list and the database stays at `0004`. Merge each pair first: move the project roles to the user to keep (`admin grant`), then delete or rename the other. Audit rows reference user IDs and stay as they are. Find pairs with:
+
+```sql
+SELECT lower(subject), array_agg(id || ' ' || subject) FROM app_user
+GROUP BY lower(subject) HAVING count(*) > 1;
+```
+
 Never edit a released migration; add a new version with a rollout and rollback plan.

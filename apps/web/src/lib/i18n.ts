@@ -166,6 +166,7 @@ export const errors: Record<string, string> = {
   candidate_limit: "候选数量超过上限。",
   invalid_export: "旧系统导出文件格式不正确。",
   internal_error: "服务器内部错误，请稍后重试。",
+  http_414: "检索条件过长。",
 };
 
 /** Server text (QC issue messages, parser coverage warnings) in Chinese. Each pattern mirrors

@@ -154,6 +154,14 @@ def test_full_fasta_journey_over_http(api: Api) -> None:
     assert [r["name"] for r in by_name] == ["A1 heavy chain"]
     by_sequence = api.call("GET", "/v1/records", params={"sequence": "mktay iakqw\n"}).json()
     assert [r["name"] for r in by_sequence["items"]] == ["A2"]
+    sha = hashlib.sha256(b"MKTAYIAKQW").hexdigest()
+    by_hash = api.call("GET", "/v1/records", params={"sequence_sha256": sha}).json()
+    assert [r["name"] for r in by_hash["items"]] == ["A2"]
+    both = api.call("GET", "/v1/records", params={"sequence": "M", "sequence_sha256": sha})
+    assert_error(both, 422, "invalid_request")
+    assert_error(
+        api.call("GET", "/v1/records", params={"sequence_sha256": "XYZ"}), 400, "malformed_request"
+    )
     record_id = by_name[0]["record_id"]
     record = api.call("GET", f"/v1/records/{record_id}").json()
     (version,) = record["versions"]
@@ -248,12 +256,19 @@ def test_commit_preview_separates_new_records_from_sequence_reuse(api: Api) -> N
     committed = api.call("POST", "/v1/commits", json=body, headers={"Idempotency-Key": "p"})
     assert committed.json()["counts"] == {"COMMITTED": 1}
 
-    batch = b">B\nMKTAYIAKQR\n>C\nMKTAYIAKQW\n>A\nMKTAYIAKQR\n>D\nMKTAYIAKQW\n"
+    batch = (
+        b">B\nMKTAYIAKQR\n>C\nMKTAYIAKQW\n>A\nMKTAYIAKQR\n>D\nMKTAYIAKQW\n"
+        b">E\nMKTAYIAKQE\n>F\nMKTAYIAKQE\n"
+    )
     second = api.upload("b.fasta", batch)
     ids = [
         e["candidate"]["candidate_id"]
         for e in api.call("GET", f"/v1/jobs/{second}/candidates").json()["items"]
     ]
+    for index, candidate_id in enumerate(ids):
+        if index != 4:  # E stays unapproved
+            review = {"candidate_id": candidate_id, "revision": 1, "decision": "approved"}
+            assert api.call("POST", "/v1/reviews", json=review).status_code == 200
     preview = api.call("POST", "/v1/commits/preview", json={"candidate_ids": [*ids, "cand_x"]})
     assert preview.status_code == 200, preview.text
     assert [(p["record_action"], p["reuses_sequence"]) for p in preview.json()["items"]] == [
@@ -261,6 +276,8 @@ def test_commit_preview_separates_new_records_from_sequence_reuse(api: Api) -> N
         ("create_record", False),  # C: new sequence
         ("add_provenance", True),  # A: same name, same sequence
         ("create_record", True),  # D: C's sequence, committed earlier in the batch
+        (None, False),  # E: not approved, so it will not commit
+        ("create_record", False),  # F: E's sequence, but E does not commit
         (None, False),  # not visible
     ]
     hidden = api.call("POST", "/v1/commits/preview", user="olga", json={"candidate_ids": ids})

@@ -82,24 +82,20 @@ class CommitService:
 
     def preview(self, actor: Actor, candidate_ids: Sequence[str]) -> list[CommitPreview]:
         """Plan each commit as ``commit`` would, in order, without writing. Earlier items of
-        the batch count as published, so two new candidates with one name or one sequence
-        preview as they will commit."""
+        the batch that will commit count as published, so two new candidates with one name or
+        one sequence preview as they will commit. A candidate that cannot commit now (not
+        approved, blocked, over the limit, not a confirmed protein) previews as None."""
         names: dict[tuple[str, str], str] = {}
         sequences: set[tuple[str, str]] = set()
         previews = []
         with self.uow_factory() as uow:
             for candidate_id in candidate_ids:
                 row = uow.candidates.get(candidate_id)
-                qc = None if row is None else row.candidate.qc
-                if (
-                    row is None
-                    or row.tenant_id != actor.tenant_id
-                    or not uow.members.roles(actor.user_id, row.project_id)
-                    or row.candidate.name is None
-                    or qc is None
-                    or qc.normalized is None
-                    or not qc.normalized.sequence
-                ):
+                if row is None or not self._committable(uow, actor, row):
+                    previews.append(CommitPreview(candidate_id, None))
+                    continue
+                qc = row.candidate.qc
+                if row.candidate.name is None or qc is None or qc.normalized is None:
                     previews.append(CommitPreview(candidate_id, None))
                     continue
                 sequence = qc.normalized.sequence
@@ -121,6 +117,9 @@ class CommitService:
                     record,
                     row.candidate.resolutions.get("QC09"),
                 )
+                if plan.record_action in (RecordAction.NEEDS_DECISION, RecordAction.CANCEL):
+                    previews.append(CommitPreview(candidate_id, plan.record_action))
+                    continue
                 if plan.record_action in (RecordAction.CREATE_RECORD, RecordAction.NEW_VERSION):
                     names[(row.project_id, key_name)] = sequence
                 sequences.add((row.tenant_id, sequence))
@@ -130,6 +129,26 @@ class CommitService:
                     )
                 )
         return previews
+
+    def _committable(self, uow: UnitOfWork, actor: Actor, row: CandidateRow) -> bool:
+        """The checks ``_apply`` makes before publishing, minus locks and the key."""
+        candidate, qc = row.candidate, row.candidate.qc
+        roles = uow.members.roles(actor.user_id, row.project_id)
+        return bool(
+            row.tenant_id == actor.tenant_id
+            and roles & PERMISSIONS[Action.COMMIT]
+            and candidate.status is CandidateStatus.APPROVED
+            and candidate.approved_revision == candidate.revision
+            and qc is not None
+            and qc.qc_version == self.registry.version
+            and not qc.blocked
+            and qc.normalized is not None
+            and 0 < len(qc.normalized.sequence) <= self.max_residues
+            and (
+                qc.molecule_type is MoleculeType.PROTEIN
+                or candidate.resolutions.get("QC11") == "confirm_molecule_type"
+            )
+        )
 
     def _commit_with_retry(self, actor: Actor, key: str, item: CommitItem) -> CommitOutcome:
         for attempt in range(2):

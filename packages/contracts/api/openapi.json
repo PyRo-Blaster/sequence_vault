@@ -4317,6 +4317,23 @@
           },
           {
             "in": "query",
+            "name": "sequence_sha256",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sequence Sha256"
+            }
+          },
+          {
+            "in": "query",
             "name": "min_length",
             "required": false,
             "schema": {
