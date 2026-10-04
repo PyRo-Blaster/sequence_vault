@@ -215,3 +215,37 @@ def test_detected_sequences_the_model_leaves_out_stay_unresolved() -> None:
     assert any("not assigned to any record" in w for w in coverage["warnings"])
     (record,) = records_from_extraction(assisted.result)
     assert context_for(record, {**document, "coverage": coverage}).coverage_risk  # QC08
+
+
+def test_named_entries_without_a_sequence_survive_a_model_answer() -> None:
+    """A rule-found PENDING_CONTENT entry the model does not mention is kept."""
+    document, rules = document_and_rules(
+        ["Name: Missing1", "Some notes about this pending entry.", "Ab1", HEAVY], "Other2.docx"
+    )
+    pending = [r for r in rules["records"] if not r["sequence_spans"]]
+    assert [n["value"] for r in pending for n in r["names"]] == ["Missing1"]
+    assert needs_model("docx", rules)
+    request, _, _ = payload(document, rules, "Other2.docx")
+    model = FakeModel(
+        ok(
+            {
+                "records": [
+                    {
+                        "span_ids": [ids(request, "span", "EVQLV")],
+                        "name_ids": [ids(request, "name", "Ab1")],
+                        "molecule_type": "protein",
+                        "association_status": "unambiguous",
+                        "observations": [],
+                    }
+                ],
+                "unresolved_block_ids": [],
+            }
+        )
+    )
+    assisted = assist(model, document, rules, "Other2.docx", lambda n, d: check(n, d))
+    assert assisted.model_version == "claude-opus-5-5"
+    found = [
+        ([n["value"] for n in r["names"]], len(r["sequence_spans"]))
+        for r in assisted.result["records"]
+    ]
+    assert found == [(["Ab1"], 1), (["Missing1"], 0)]

@@ -204,6 +204,13 @@ def _preview(document: Json, span: Json) -> str:
     return text if len(text) <= 60 else f"{text[:30]}…{text[-20:]} ({len(text)} chars)"
 
 
+def _name_key(name: Json) -> tuple[str, str, str | None, int, int]:
+    evidence = name["evidence"]
+    if evidence is None:
+        return name["value"], name["source"], None, 0, 0
+    return name["value"], name["source"], evidence["block_id"], evidence["start"], evidence["end"]
+
+
 def resolve(
     answer: Json, document: Json, rule_result: Json, spans: list[Json], names: list[Json]
 ) -> tuple[Json | None, str | None]:
@@ -211,7 +218,9 @@ def resolve(
 
     Every detected span stays accounted for whatever the model says (design section 4):
     a span no record covers, and a block the rules could not resolve that the answer
-    leaves untouched, are reported as unresolved, so QC flags the run for review."""
+    leaves untouched, are reported as unresolved, so QC flags the run for review. Named
+    entries without a sequence that the answer does not use are kept as the rules found
+    them."""
     span_by_id = {s["id"]: s for s in spans}
     name_by_id = {n["id"]: n for n in names}
     blocks = {b["block_id"]: b["raw_text"] for b in document["blocks"]}
@@ -277,6 +286,14 @@ def resolve(
     unresolved = [b for b in answer.get("unresolved_block_ids", []) if b in blocks]
     if problems:
         return None, "; ".join(problems)
+    # Named entries the rules found without a sequence (PENDING_CONTENT) have no span to
+    # account for. Keep each one the answer does not use, rather than lose it silently.
+    answered = {_name_key(n) for record in records for n in record["names"]}
+    records.extend(
+        dict(rule)
+        for rule in rule_result["records"]
+        if not rule["sequence_spans"] and not any(_name_key(n) in answered for n in rule["names"])
+    )
     claimed = [span_by_id[i] for i in used]
     missed = [
         s

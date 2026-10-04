@@ -115,3 +115,14 @@ def test_t09_a_named_entry_without_a_sequence_waits_for_content() -> None:
     assert [len(r["sequence_spans"]) for r in front_matter["records"]] == [1]
     together = run("名称：Ab1\nMKTAYIAKQRQISF\n".encode(), "a.txt", fasta=False)
     assert summary(together) == [([("Ab1", "heading")], "unambiguous", 1)]
+
+
+def test_a_text_name_label_names_the_sequence_after_one_blank_line() -> None:
+    heavy = "EVQLVESGGGLVQPGGSLRLSCAASGFTFS"
+    labelled = run(f"Name: Ab1\n\n{heavy}\n".encode(), "notes.txt", fasta=False)
+    assert summary(labelled) == [([("Ab1", "heading")], "unambiguous", 1)]
+    # Conservative in plain text: a wider gap or a generic heading does not name it.
+    far = run(f"Name: Ab1\n\n\n{heavy}\n".encode(), "notes.txt", fasta=False)
+    assert [len(r["sequence_spans"]) for r in far["records"]] == [0, 1]
+    generic = run(f"Results\n\n{heavy}\n".encode(), "notes.txt", fasta=False)
+    assert [n["value"] for n in generic["records"][0]["names"]] == ["notes"]

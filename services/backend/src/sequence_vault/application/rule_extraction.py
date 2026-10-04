@@ -117,6 +117,23 @@ def _is_heading(block: Json) -> bool:
     return "\n" not in raw.strip() and len(raw) <= 120 and not is_sequence_like(raw)
 
 
+def _names(heading: Json, block: Json) -> bool:
+    """Whether ``heading`` names the sequence in ``block``. The one decision used both to
+    attach the name and to decide that a named entry has no content of its own.
+
+    Word paragraphs: any short heading directly before. Plain text: only an explicit name
+    label ("Name: Ab1") separated from the sequence by a single blank line."""
+    if _adjacent(heading, block):
+        return _is_heading(heading)
+    a, b = heading["location"], block["location"]
+    return bool(
+        a["kind"] == b["kind"] == "text"
+        and b["line_start"] - a["line_end"] == 2
+        and "\n" not in heading["raw_text"].strip()
+        and _NAME_ENTRY.match(heading["raw_text"])
+    )
+
+
 def _heading(block: Json, line: str, offset: int = 0) -> list[Json]:
     value, start = _heading_name(line)
     if not value:
@@ -148,7 +165,7 @@ def _paragraph_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
             previous = blocks[index - 1] if index else None
             names = (
                 _heading(previous, previous["raw_text"])
-                if previous is not None and _adjacent(previous, block) and _is_heading(previous)
+                if previous is not None and _names(previous, block)
                 else []
             )
             record = _record(
@@ -183,8 +200,8 @@ def _paragraph_records(blocks: list[Json], unresolved: list[str]) -> list[Json]:
             following = blocks[index + 1] if index + 1 < len(blocks) else None
             claimed = (
                 following is not None
-                and _adjacent(block, following)
                 and is_sequence_like(following["raw_text"])
+                and _names(block, following)
             )
             if not claimed:
                 # An explicitly named entry without a sequence waits for content (T09).

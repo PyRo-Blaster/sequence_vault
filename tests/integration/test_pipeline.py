@@ -125,7 +125,10 @@ def test_named_entries_and_short_column_values_are_never_dropped(env: Env) -> No
     """A name-only TXT entry waits for content; a short value in a sequence column is kept."""
     name_only = env.upload("Ab1.txt", b"Name: Ab1\n")
     short = env.upload("peptides.csv", b"name,sequence\nAb1,ACDE\n")
+    labelled = env.upload("notes.txt", b"Name: Ab1\n\nEVQLVESGGGLVQPGGSLRLSCAASGFTFS\n")
     env.worker.run_until_idle()
+    (named,) = env.candidates(labelled)
+    assert (named["status"], named["name"]) == ("NEEDS_REVIEW", "Ab1")
     (pending,) = env.candidates(name_only)
     assert (pending["status"], pending["name"]) == ("PENDING_CONTENT", "Ab1")
     (peptide,) = env.candidates(short)
