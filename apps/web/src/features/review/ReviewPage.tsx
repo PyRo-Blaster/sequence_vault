@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router";
 import { EvidenceViewer, type Highlight } from "../../components/EvidenceViewer";
 import { TaskStatusTag } from "../../components/StatusTag";
 import { api, download, unwrap, type CandidateEnvelope } from "../../lib/api";
-import { errorText } from "../../lib/i18n";
+import { errorText, serverText } from "../../lib/i18n";
 import { hasRole, useProject } from "../../lib/session";
 import { CandidateCard } from "./CandidateCard";
 import { CommitDialog } from "./CommitDialog";
@@ -116,7 +116,7 @@ export function ReviewPage() {
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Card size="small">
         <Space wrap>
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title level={1} className="sv-page-title" style={{ margin: 0 }}>
             {task.data?.file_name}
           </Typography.Title>
           {task.data && <TaskStatusTag status={task.data.status} />}
@@ -167,7 +167,13 @@ export function ReviewPage() {
           />
         )}
         {(document.data?.run?.coverage?.warnings as string[] | undefined)?.map((warning) => (
-          <Alert key={warning} type="warning" showIcon message={warning} style={{ marginTop: 8 }} />
+          <Alert
+            key={warning}
+            type="warning"
+            showIcon
+            message={serverText(warning)}
+            style={{ marginTop: 8 }}
+          />
         ))}
       </Card>
       <Row gutter={16}>

@@ -1,5 +1,5 @@
 import { InboxOutlined } from "@ant-design/icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, Button, Card, Space, Table, Tag, Typography, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
@@ -32,14 +32,23 @@ export function UploadsPage({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   const projectId = project?.project_id ?? "";
 
-  const tasks = useQuery({
+  const tasks = useInfiniteQuery({
     queryKey: ["tasks", projectId],
     enabled: !!projectId,
-    queryFn: () =>
-      unwrap(api.GET("/v1/jobs", { params: { query: { project_id: projectId, limit: 100 } } })),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      unwrap(
+        api.GET("/v1/jobs", {
+          params: { query: { project_id: projectId, limit: 50, cursor: pageParam } },
+        }),
+      ),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
     refetchInterval: (query) =>
-      query.state.data?.items.some((t) => ACTIVE.has(t.status)) ? 1500 : false,
+      query.state.data?.pages.some((page) => page.items.some((t) => ACTIVE.has(t.status)))
+        ? 1500
+        : false,
   });
+  const taskRows = tasks.data?.pages.flatMap((page) => page.items) ?? [];
 
   const action = useMutation({
     mutationFn: async ({ task, kind }: { task: Task; kind: "cancel" | "reprocess" }) =>
@@ -141,6 +150,9 @@ export function UploadsPage({ me }: { me: Me }) {
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Typography.Title level={1} className="sv-page-title">
+        上传与任务
+      </Typography.Title>
       {canUpload ? (
         <Card title="上传序列文件">
           <Typography.Paragraph type="secondary">
@@ -165,8 +177,9 @@ export function UploadsPage({ me }: { me: Me }) {
           </Upload.Dragger>
           {outcomes.length > 0 && (
             <ul className="sv-upload-results">
-              {outcomes.map((o) => (
-                <li key={o.name}>
+              {outcomes.map((o, index) => (
+                // The same file can be uploaded twice in one batch; names are not unique.
+                <li key={index}>
                   {o.name}：
                   {o.error ? (
                     <Typography.Text type="danger">{errorText(o.error)}</Typography.Text>
@@ -182,13 +195,24 @@ export function UploadsPage({ me }: { me: Me }) {
         <Alert type="info" message="您在此项目中没有上传权限，可查看任务与记录。" />
       )}
       <Card title="处理任务">
+        {tasks.error && <Alert type="error" showIcon message={errorText(tasks.error)} />}
         <Table
           rowKey="task_id"
           loading={tasks.isLoading}
-          dataSource={tasks.data?.items ?? []}
+          dataSource={taskRows}
           columns={columns}
           pagination={false}
+          scroll={{ x: "max-content" }}
         />
+        {tasks.hasNextPage && (
+          <Button
+            style={{ marginTop: 12 }}
+            loading={tasks.isFetchingNextPage}
+            onClick={() => void tasks.fetchNextPage()}
+          >
+            加载更多
+          </Button>
+        )}
       </Card>
     </Space>
   );

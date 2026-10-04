@@ -5,6 +5,7 @@ import json
 import sys
 
 from sqlalchemy import create_engine
+from sqlalchemy.exc import DBAPIError, IntegrityError, NoResultFound, SQLAlchemyError
 
 from sequence_vault.adapters.persistence.admin import Provisioning
 from sequence_vault.adapters.persistence.migrate import upgrade
@@ -62,6 +63,24 @@ def main(argv: list[str] | None = None) -> int:
         json.dump(openapi(), sys.stdout, indent=2, ensure_ascii=False, sort_keys=True)
         sys.stdout.write("\n")
         return 0
+    try:
+        return _run(args)
+    except NoResultFound:
+        print("error: no such project", file=sys.stderr)
+    except IntegrityError as exc:
+        print(f"error: unknown tenant, project or user ({_reason(exc)})", file=sys.stderr)
+    except SQLAlchemyError as exc:
+        print(f"error: database: {_reason(exc)}", file=sys.stderr)
+    return 2
+
+
+def _reason(exc: SQLAlchemyError) -> str:
+    """The driver's first line, without SQL or parameters."""
+    cause = exc.orig if isinstance(exc, DBAPIError) else exc
+    return str(cause).strip().splitlines()[0] if str(cause).strip() else type(cause).__name__
+
+
+def _run(args: argparse.Namespace) -> int:
     database_url = Settings.from_env().database_url
     if args.command == "migrate":
         upgrade(database_url)

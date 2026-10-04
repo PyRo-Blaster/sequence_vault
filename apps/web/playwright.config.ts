@@ -19,6 +19,8 @@ export default defineConfig({
       url: "http://127.0.0.1:8000/v1/health",
       timeout: 120_000,
       reuseExistingServer: false,
+      // The default is SIGKILL, which leaves the stack's PostgreSQL cluster running.
+      gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
       stdout: "ignore",
       stderr: "pipe",
     },

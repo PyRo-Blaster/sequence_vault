@@ -73,6 +73,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/commits/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Commit Preview
+     * @description What a commit would write now: a new record, a new version or provenance only,
+     *     and whether the sequence is already stored. Nothing is written.
+     */
+    post: operations["commit_preview_v1_commits_preview_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/files/{file_id}/content": {
     parameters: {
       query?: never;
@@ -500,6 +521,26 @@ export interface components {
       candidate_id: string;
       /** Revision */
       revision: number;
+    };
+    /** CommitPreviewItem */
+    CommitPreviewItem: {
+      /** Candidate Id */
+      candidate_id: string;
+      /** Record Action */
+      record_action:
+        ("create_record" | "add_provenance" | "new_version" | "needs_decision" | "cancel") | null;
+      /** Reuses Sequence */
+      reuses_sequence: boolean;
+    };
+    /** CommitPreviewRequest */
+    CommitPreviewRequest: {
+      /** Candidate Ids */
+      candidate_ids: string[];
+    };
+    /** CommitPreviewResponse */
+    CommitPreviewResponse: {
+      /** Items */
+      items: components["schemas"]["CommitPreviewItem"][];
     };
     /** CommitRequest */
     CommitRequest: {
@@ -1434,6 +1475,111 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CommitResponse"];
+        };
+      };
+      /** @description Malformed request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Not signed in */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Revision or business conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Limit exceeded */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Unacceptable content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Revision required */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  commit_preview_v1_commits_preview_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CommitPreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommitPreviewResponse"];
         };
       };
       /** @description Malformed request */

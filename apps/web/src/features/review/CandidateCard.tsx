@@ -23,6 +23,7 @@ import {
   origin,
   resolutions as resolutionLabels,
   rules,
+  serverText,
 } from "../../lib/i18n";
 import { useCandidateAction } from "./actions";
 import { canApprove, hasBlock, unresolved } from "./rules";
@@ -173,14 +174,15 @@ export function CandidateCard({
 
       {candidate.issues.length > 0 && (
         <ul className="sv-issues">
-          {candidate.issues.map((issue) => {
+          {candidate.issues.map((issue, index) => {
             const resolved = review.resolutions[issue.rule_id];
             const options = (review.allowed_resolutions[issue.rule_id] ?? []).map((value) => ({
               value,
               label: resolutionLabels[value] ?? value,
             }));
             return (
-              <li key={issue.rule_id} data-rule={issue.rule_id}>
+              // A rule can report more than once (two QC02 transformations).
+              <li key={`${issue.rule_id}-${index}`} data-rule={issue.rule_id}>
                 <Space wrap>
                   <SeverityTag value={issue.severity} />
                   <Typography.Text strong>{issue.rule_id}</Typography.Text>
@@ -195,7 +197,7 @@ export function CandidateCard({
                     </Button>
                   )}
                 </Space>
-                <div className="sv-issue-message">{issue.message}</div>
+                <div className="sv-issue-message">{serverText(issue.message)}</div>
                 {issue.severity === "BLOCK" ? (
                   <Typography.Text type="danger">
                     阻断问题不能忽略：请修正序列或证据、补充资料，或登记为片段。

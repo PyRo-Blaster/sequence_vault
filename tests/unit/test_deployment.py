@@ -30,6 +30,17 @@ def test_nginx_overwrites_the_proxy_secret_and_drops_development_login() -> None
     assert 'proxy_set_header X-Dev-User "";' in text
 
 
+def test_nginx_sets_every_header_once_at_server_level() -> None:
+    """A location with its own add_header silently drops the server's headers (B12)."""
+    text = TEMPLATE.read_text()
+    locations = re.findall(r"^    location [^{]+\{(.*?)^    \}", text, re.M | re.S)
+    assert len(locations) == 3
+    assert not any("add_header" in body or "expires" in body for body in locations)
+    headers = re.findall(r"^    add_header ([\w-]+) ", text, re.M)
+    assert sorted(headers) == sorted(set(headers))
+    assert {"Content-Security-Policy", "X-Frame-Options", "Cache-Control"} <= set(headers)
+
+
 def test_compose_only_sets_variables_the_backend_reads() -> None:
     configured = set(re.findall(r"^\s+(SEQUENCE_VAULT_[A-Z_]+):", COMPOSE.read_text(), re.M))
     unknown = configured - known_variables() - {"SEQUENCE_VAULT_API_UPSTREAM"}

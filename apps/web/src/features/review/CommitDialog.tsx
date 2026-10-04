@@ -1,10 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, Descriptions, Modal, Table, Tag } from "antd";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Descriptions, Modal, Spin, Table, Tag } from "antd";
 import { useState } from "react";
 
 import { api, unwrap, type CandidateEnvelope, type CommitResult } from "../../lib/api";
 import { commitReason, commitStatus, errorText } from "../../lib/i18n";
-import { commitKind } from "./rules";
 
 /** Preview counts, commit with one idempotency key, and show per-item results. */
 export function CommitDialog({
@@ -36,7 +35,20 @@ export function CommitDialog({
       void queryClient.invalidateQueries({ queryKey: ["task", taskId] });
     },
   });
-  const kinds = items.map(commitKind);
+  const ids = items.map((e) => e.candidate.candidate_id);
+  // The server plans each item as the commit will, so reuse and new records are not mixed up.
+  const preview = useQuery({
+    queryKey: ["commit-preview", ids],
+    queryFn: () => unwrap(api.POST("/v1/commits/preview", { body: { candidate_ids: ids } })),
+  });
+  const planned = preview.data?.items ?? [];
+  const count = (action: string) => planned.filter((p) => p.record_action === action).length;
+  const undecided = planned.filter(
+    (p) =>
+      p.record_action === null ||
+      p.record_action === "needs_decision" ||
+      p.record_action === "cancel",
+  ).length;
   const names = new Map(
     items.map((e) => [e.candidate.candidate_id, e.candidate.name?.value ?? "（未命名）"]),
   );
@@ -56,17 +68,19 @@ export function CommitDialog({
       onOk={() => (commit.data ? onClose() : commit.mutate())}
       width={720}
     >
-      {!commit.data && (
-        <Descriptions bordered size="small" column={3}>
-          <Descriptions.Item label="新记录">
-            {kinds.filter((k) => k === "new_record").length}
-          </Descriptions.Item>
-          <Descriptions.Item label="新版本">
-            {kinds.filter((k) => k === "new_version").length}
-          </Descriptions.Item>
+      {!commit.data && preview.isLoading && <Spin />}
+      {!commit.data && preview.error && (
+        <Alert type="warning" message={`无法预览：${errorText(preview.error)}`} />
+      )}
+      {!commit.data && preview.data && (
+        <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
+          <Descriptions.Item label="新记录">{count("create_record")}</Descriptions.Item>
+          <Descriptions.Item label="新版本">{count("new_version")}</Descriptions.Item>
+          <Descriptions.Item label="已有记录追加来源">{count("add_provenance")}</Descriptions.Item>
           <Descriptions.Item label="复用已有序列">
-            {kinds.filter((k) => k === "reuse").length}
+            {planned.filter((p) => p.reuses_sequence).length}
           </Descriptions.Item>
+          {undecided > 0 && <Descriptions.Item label="将不会入库">{undecided}</Descriptions.Item>}
         </Descriptions>
       )}
       {commit.error && (

@@ -188,6 +188,18 @@ class CommitResponse(Model):
     counts: dict[str, int]
 
 
+class CommitPreviewItem(Model):
+    candidate_id: str
+    record_action: (
+        Literal["create_record", "add_provenance", "new_version", "needs_decision", "cancel"] | None
+    )
+    reuses_sequence: bool
+
+
+class CommitPreviewResponse(Model):
+    items: list[CommitPreviewItem]
+
+
 class RecordSummary(Model):
     record_id: str
     name: str

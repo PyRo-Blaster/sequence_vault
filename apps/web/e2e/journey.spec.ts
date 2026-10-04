@@ -169,5 +169,10 @@ test("project administrators see quality and manage roles", async ({ page }) => 
   const viewerTag = bob.locator(".ant-tag", { hasText: /^查看$/ });
   await expect(viewerTag).toBeVisible();
   await bob.getByRole("button", { name: "撤销查看角色" }).click();
+  // Revoking asks first (B19); cancelling keeps the role.
+  await page.getByRole("tooltip").getByRole("button", { name: "取消" }).click();
+  await expect(viewerTag).toBeVisible();
+  await bob.getByRole("button", { name: "撤销查看角色" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "撤销" }).click();
   await expect(viewerTag).toHaveCount(0);
 });

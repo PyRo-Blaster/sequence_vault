@@ -113,8 +113,14 @@ def _adjacent(first: Json, second: Json) -> bool:
 
 
 def _is_heading(block: Json) -> bool:
+    """A short single line that is not a sentence: "Some text here." names nothing."""
     raw = block["raw_text"]
-    return "\n" not in raw.strip() and len(raw) <= 120 and not is_sequence_like(raw)
+    return (
+        "\n" not in raw.strip()
+        and len(raw) <= 120
+        and not raw.rstrip().endswith((".", "。", "!", "?", "\uff01", "\uff1f"))  # also full width
+        and not is_sequence_like(raw)
+    )
 
 
 def _names(heading: Json, block: Json) -> bool:

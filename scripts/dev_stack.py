@@ -42,7 +42,20 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _terminated(signum: int, _frame: object) -> None:
+    # Once only: `uv run` forwards SIGTERM and the process group receives it too, and a
+    # second exception would abort the cleanup in main's finally.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+
 def main() -> int:
+    # SIGTERM (Playwright's graceful shutdown, docker stop) and SIGHUP unwind through the
+    # finally below, so a throwaway cluster never outlives the stack.
+    signal.signal(signal.SIGTERM, _terminated)
+    signal.signal(signal.SIGHUP, _terminated)
+    server: subprocess.Popen[bytes] | None = None
     env = dict(os.environ)
     env.setdefault("SEQUENCE_VAULT_ENV", "development")
     env.setdefault("SEQUENCE_VAULT_STORAGE", "local")
@@ -119,11 +132,18 @@ def main() -> int:
                 )
             )
         server = subprocess.Popen([*python, "sequence_vault.entrypoints.dev_server"], env=env)
-        signal.signal(signal.SIGTERM, lambda *_: server.terminate())
         return server.wait()
     except KeyboardInterrupt:
         return 0
     finally:
+        for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            signal.signal(signum, signal.SIG_IGN)
+        if server is not None and server.poll() is None:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
         if workdir is not None and bindir is not None:
             subprocess.run(
                 as_postgres(

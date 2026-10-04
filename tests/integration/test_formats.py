@@ -130,3 +130,35 @@ def test_model_assistance_is_recorded_on_the_run(env: Env) -> None:
     with env.app.engine.connect() as c:
         run = c.execute(select(t.extraction_run)).one()
     assert (run.model_version, run.prompt_version) == ("claude-opus-5-5", "extraction-v1")
+
+
+@pytest.mark.parametrize(
+    ("name", "data"),
+    [
+        ("blank.pdf", builders.pdf([[]])),
+        ("empty.docx", builders.docx([])),
+        ("notes.txt", b"Meeting notes. Nothing to import here.\n"),
+    ],
+    ids=["blank-pdf", "empty-docx", "prose-txt"],
+)
+def test_files_without_sequences_fail_with_a_reason(env: Env, name: str, data: bytes) -> None:
+    """B14: no candidates is a failed task with a reason, not an empty review."""
+    task_id = env.upload(name, data)
+    env.worker.run_until_idle()
+    assert env.task(task_id) == ("FAILED", "no_sequences_found")
+    assert env.candidates(task_id) == []
+
+
+def test_sequences_only_inside_prose_fail_with_their_own_reason(env: Env) -> None:
+    data = b"The construct MKTAYIAKQRQISFVKSHFSRQ was expressed in CHO cells.\n"
+    task_id = env.upload("notes.txt", data)
+    env.worker.run_until_idle()
+    assert env.task(task_id) == ("FAILED", "sequences_not_extracted")
+
+
+def test_a_sentence_before_a_sequence_is_not_its_name(env: Env) -> None:
+    data = builders.docx(["Some text here.", HEAVY])
+    task_id = env.upload("results.docx", data)
+    env.worker.run_until_idle()
+    ((name, _, _),) = summary(env, task_id)
+    assert name == "results"

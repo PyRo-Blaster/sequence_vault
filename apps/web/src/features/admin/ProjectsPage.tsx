@@ -7,6 +7,7 @@ import {
   Col,
   Form,
   Input,
+  Popconfirm,
   Row,
   Select,
   Space,
@@ -93,6 +94,7 @@ function Members({ projectId }: { projectId: string }) {
       <Table
         rowKey="user_id"
         pagination={false}
+        scroll={{ x: "max-content" }}
         loading={members.isLoading}
         dataSource={members.data?.items ?? []}
         columns={[
@@ -103,16 +105,23 @@ function Members({ projectId }: { projectId: string }) {
             render: (_, member: Schemas["Member"]) => (
               <Space wrap>
                 {member.roles.map((role) => (
-                  <Tag
-                    key={role}
-                    closable
-                    closeIcon={<CloseOutlined aria-label={`撤销${ROLE_LABELS[role]}角色`} />}
-                    onClose={(e) => (
-                      e.preventDefault(),
-                      revoke.mutate({ userId: member.user_id, role })
-                    )}
-                  >
+                  <Tag key={role}>
                     {ROLE_LABELS[role]}
+                    <Popconfirm
+                      title={`撤销 ${member.display_name} 的「${ROLE_LABELS[role]}」角色？`}
+                      okText="撤销"
+                      okButtonProps={{ danger: true }}
+                      cancelText="取消"
+                      onConfirm={() => revoke.mutate({ userId: member.user_id, role })}
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        className="sv-tag-action"
+                        icon={<CloseOutlined />}
+                        aria-label={`撤销${ROLE_LABELS[role]}角色`}
+                      />
+                    </Popconfirm>
                   </Tag>
                 ))}
               </Space>
@@ -176,6 +185,7 @@ function Quality({ projectId }: { projectId: string }) {
             rowKey="format"
             size="small"
             pagination={false}
+            scroll={{ x: "max-content" }}
             dataSource={q.formats}
             columns={[
               { title: "格式", dataIndex: "format" },
@@ -192,6 +202,7 @@ function Quality({ projectId }: { projectId: string }) {
             rowKey={(r) => `${r.parser_version}-${r.model_version}-${r.prompt_version}`}
             size="small"
             pagination={false}
+            scroll={{ x: "max-content" }}
             dataSource={q.runs}
             columns={[
               { title: "解析器版本", dataIndex: "parser_version" },
@@ -218,10 +229,14 @@ export function ProjectsPage({ me }: { me: Me }) {
   const { project } = useProject();
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Typography.Title level={1} className="sv-page-title">
+        项目管理
+      </Typography.Title>
       <Card title="我的项目与权限">
         <Table
           rowKey="project_id"
           pagination={false}
+          scroll={{ x: "max-content" }}
           dataSource={me.projects}
           columns={[
             { title: "项目", dataIndex: "name" },
@@ -235,7 +250,7 @@ export function ProjectsPage({ me }: { me: Me }) {
         />
       </Card>
       {project && (
-        <Typography.Title level={4} style={{ margin: 0 }}>
+        <Typography.Title level={2} className="sv-section-title">
           当前项目：{project.name}
         </Typography.Title>
       )}

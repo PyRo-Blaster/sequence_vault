@@ -1,5 +1,5 @@
 import type { CandidateEnvelope } from "../../lib/api";
-import { canApprove, commitKind, previewNormalize, unresolved } from "./rules";
+import { canApprove, previewNormalize, unresolved } from "./rules";
 
 function envelope(
   overrides: Partial<CandidateEnvelope["candidate"]> = {},
@@ -49,14 +49,6 @@ describe("review rules", () => {
     ).toBe(true);
     expect(canApprove(envelope({ issues: [issue("QC05", "BLOCK")] }))).toBe(false);
     expect(canApprove(envelope({ name: null }))).toBe(false);
-  });
-
-  it("previews what a commit writes", () => {
-    expect(commitKind(envelope())).toBe("new_record");
-    expect(commitKind(envelope({ issues: [issue("QC10", "INFO")] }))).toBe("reuse");
-    expect(
-      commitKind(envelope({ issues: [issue("QC09", "REVIEW")] }, { QC09: "create_new_version" })),
-    ).toBe("new_version");
   });
 
   it("normalizes previews like QC02", () => {

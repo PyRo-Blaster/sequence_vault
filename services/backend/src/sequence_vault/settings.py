@@ -4,12 +4,25 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote, urlsplit, urlunsplit
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _flag(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def with_password(url: str, password: str | None) -> str:
+    """Put a raw password into a database URL, percent-encoded, so any character is safe."""
+    if password is None:
+        return url
+    parts = urlsplit(url)
+    userinfo, at, host = parts.netloc.rpartition("@")
+    if not at or not userinfo:
+        raise ValueError("SEQUENCE_VAULT_DATABASE_PASSWORD needs a user in the database URL.")
+    user = userinfo.partition(":")[0]
+    return urlunsplit(parts._replace(netloc=f"{user}:{quote(password, safe='')}@{host}"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +63,10 @@ class Settings:
         mode = env.get("SEQUENCE_VAULT_ENV", "production")
         settings = cls(
             env=mode,
-            database_url=env.get("SEQUENCE_VAULT_DATABASE_URL", ""),
+            database_url=with_password(
+                env.get("SEQUENCE_VAULT_DATABASE_URL", ""),
+                env.get("SEQUENCE_VAULT_DATABASE_PASSWORD") or None,
+            ),
             storage_backend=env.get("SEQUENCE_VAULT_STORAGE", "s3"),
             local_storage_dir=Path(env.get("SEQUENCE_VAULT_LOCAL_STORAGE_DIR", ".local/objects")),
             s3_endpoint=env.get("SEQUENCE_VAULT_OBJECT_STORAGE_ENDPOINT") or None,

@@ -269,6 +269,77 @@
         "title": "CommitItemModel",
         "type": "object"
       },
+      "CommitPreviewItem": {
+        "properties": {
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "record_action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "create_record",
+                  "add_provenance",
+                  "new_version",
+                  "needs_decision",
+                  "cancel"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Action"
+          },
+          "reuses_sequence": {
+            "title": "Reuses Sequence",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "record_action",
+          "reuses_sequence"
+        ],
+        "title": "CommitPreviewItem",
+        "type": "object"
+      },
+      "CommitPreviewRequest": {
+        "properties": {
+          "candidate_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Candidate Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidate_ids"
+        ],
+        "title": "CommitPreviewRequest",
+        "type": "object"
+      },
+      "CommitPreviewResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CommitPreviewItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CommitPreviewResponse",
+        "type": "object"
+      },
       "CommitRequest": {
         "properties": {
           "items": {
@@ -2396,6 +2467,128 @@
           }
         },
         "summary": "Commit",
+        "tags": [
+          "records"
+        ]
+      }
+    },
+    "/v1/commits/preview": {
+      "post": {
+        "description": "What a commit would write now: a new record, a new version or provenance only,\nand whether the sequence is already stored. Nothing is written.",
+        "operationId": "commit_preview_v1_commits_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Revision or business conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Limit exceeded"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unacceptable content"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Revision required"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited"
+          }
+        },
+        "summary": "Commit Preview",
         "tags": [
           "records"
         ]

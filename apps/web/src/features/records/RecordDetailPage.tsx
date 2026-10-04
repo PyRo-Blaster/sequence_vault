@@ -31,7 +31,9 @@ export function RecordDetailPage() {
   const data = record.data;
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={3}>{data.name}</Typography.Title>
+      <Typography.Title level={1} className="sv-page-title">
+        {data.name}
+      </Typography.Title>
       <Timeline
         items={data.versions.map((version) => ({
           color: version.is_current ? "green" : "gray",

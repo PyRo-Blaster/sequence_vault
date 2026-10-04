@@ -21,15 +21,6 @@ export function canApprove(envelope: CandidateEnvelope): boolean {
   );
 }
 
-export type CommitKind = "new_record" | "new_version" | "reuse";
-
-/** Preview what committing writes, from the candidate's QC09/QC10 state. */
-export function commitKind(envelope: CandidateEnvelope): CommitKind {
-  if (envelope.review.resolutions.QC09 === "create_new_version") return "new_version";
-  if (envelope.candidate.issues.some((issue) => issue.rule_id === "QC10")) return "reuse";
-  return "new_record";
-}
-
 /** Normalize like QC02 for previews: drop whitespace, upper-case ASCII letters. */
 export function previewNormalize(text: string): string {
   return Array.from(text)

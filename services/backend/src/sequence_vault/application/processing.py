@@ -258,6 +258,10 @@ class Pipeline:
             model_version, prompt_version = assisted.model_version, assisted.prompt_version
             if len(result["records"]) > self.limits.max_candidates:
                 failure = "candidate_limit"
+        if failure is None and not result["records"]:
+            # Nothing for a reviewer to look at: say so instead of an empty review (B14).
+            unread = result["coverage"]["unresolved_blocks"]
+            failure = "sequences_not_extracted" if unread else "no_sequences_found"
         if failure is None and self.schema_errors("extraction-result", result):
             failure = "invalid_extraction_result"
         if failure is None:

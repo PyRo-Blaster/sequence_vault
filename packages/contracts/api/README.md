@@ -10,6 +10,7 @@ Transport contract from design v1.0, section 8. `openapi.json` is generated from
 | GET | `/v1/jobs/{id}/candidates` | Authorized, paginated candidates with issues |
 | PATCH | `/v1/candidates/{id}` | `If-Match` revision; increment revision, invalidate approval, revalidate |
 | POST | `/v1/reviews` | Reviewer permission and explicit approved/rejected revision |
+| POST | `/v1/commits/preview` | Candidate IDs; per item, what a commit would write now (new record, new version, provenance only, decision needed) and whether the sequence is reused. Writes nothing |
 | POST | `/v1/commits` | Approved revisions and `Idempotency-Key`; atomic per-item results |
 | GET | `/v1/records` | Authorized filters and cursor pagination |
 | GET | `/v1/records/{id}/export` | Explicit version, authorized FASTA, escaped header |

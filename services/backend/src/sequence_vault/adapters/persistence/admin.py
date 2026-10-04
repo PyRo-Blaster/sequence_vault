@@ -73,7 +73,8 @@ class SqlProjectAdmin:
         with self.engine.connect() as c:
             value = c.execute(
                 select(t.app_user.c.id).where(
-                    t.app_user.c.tenant_id == tenant_id, t.app_user.c.subject == subject
+                    t.app_user.c.tenant_id == tenant_id,
+                    func.lower(t.app_user.c.subject) == subject.lower(),
                 )
             ).scalar()
         return None if value is None else str(value)
@@ -243,7 +244,7 @@ class Provisioning:
     def user(self, tenant_id: str, subject: str, display_name: str) -> str:
         with self.engine.begin() as c:
             existing = c.execute(
-                select(t.app_user.c.id).where(t.app_user.c.subject == subject)
+                select(t.app_user.c.id).where(func.lower(t.app_user.c.subject) == subject.lower())
             ).scalar()
             if existing:
                 return str(existing)

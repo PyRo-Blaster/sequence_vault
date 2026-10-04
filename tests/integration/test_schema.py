@@ -34,8 +34,13 @@ def seed(engine: Engine) -> None:
 def test_migrated_schema_matches_table_definitions(engine: Engine) -> None:
     with engine.connect() as connection:
         differences = compare_metadata(MigrationContext.configure(connection), metadata)
-    # Trigram and partial indexes can only be expressed in the migration.
-    migration_only = {"record_name_trgm", "record_one_current_version", "stage_job_ready"}
+    # Trigram, partial and expression indexes can only be expressed in the migration.
+    migration_only = {
+        "record_name_trgm",
+        "record_one_current_version",
+        "stage_job_ready",
+        "app_user_subject_lower",
+    }
     relevant = [d for d in differences if getattr(d[1], "name", None) not in migration_only]
     assert relevant == []
 

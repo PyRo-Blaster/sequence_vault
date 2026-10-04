@@ -8,6 +8,7 @@ from sqlalchemy import Engine, select
 from sequence_vault.adapters.persistence import tables as t
 from sequence_vault.adapters.persistence.admin import Provisioning
 from sequence_vault.application.authorization import Role
+from sequence_vault.entrypoints.admin import main as admin_cli
 from tests.integration.test_api import Api, assert_error
 
 
@@ -95,3 +96,19 @@ def test_quality_summary_counts_outcomes(api: Api) -> None:
     assert_error(
         api.call("GET", f"/v1/projects/{api.project}/quality", user="victor"), 403, "forbidden"
     )
+
+
+def test_admin_cli_reports_unknown_ids_without_a_traceback(
+    api: Api, database_url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B10: a mistyped ID is an error message and exit status 2, not a stack trace."""
+    monkeypatch.setenv("SEQUENCE_VAULT_DATABASE_URL", database_url)
+    grant = ["grant", "--user", "user_missing", "--role", "viewer"]
+    assert admin_cli([*grant, "--project", "proj_missing"]) == 2
+    assert capsys.readouterr().err == "error: no such project\n"
+    assert admin_cli([*grant, "--project", api.project]) == 2
+    assert capsys.readouterr().err.startswith("error: unknown tenant, project or user (")
+    assert (
+        admin_cli(["add-user", "--tenant", "tenant_missing", "--subject", "x", "--name", "X"]) == 2
+    )
+    assert "Traceback" not in capsys.readouterr().err

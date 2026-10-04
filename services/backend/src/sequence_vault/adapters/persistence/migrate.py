@@ -17,5 +17,6 @@ def migrations_dir() -> Path:
 
 def upgrade(database_url: str, revision: str = "head") -> None:
     config = Config(str(migrations_dir() / "alembic.ini"))
-    config.set_main_option("sqlalchemy.url", database_url)
+    # ConfigParser interpolates "%"; a percent-encoded password must reach Alembic intact.
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     command.upgrade(config, revision)

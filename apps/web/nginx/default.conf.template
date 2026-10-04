@@ -1,6 +1,13 @@
 # Rendered by the nginx image's envsubst at start-up. Only defined variables are replaced:
 # SEQUENCE_VAULT_API_UPSTREAM and SEQUENCE_VAULT_PROXY_SECRET.
 # Requests arrive from the OIDC proxy, which sets the identity header (ADR 0006).
+# Hashed build assets are immutable; the app shell must be revalidated; the API sets its own.
+map $uri $sequence_vault_cache {
+    ~^/assets/ "public, max-age=31536000, immutable";
+    ~^/v1/     "";
+    default    "no-cache";
+}
+
 server {
     listen 8080;
     server_tokens off;
@@ -10,10 +17,13 @@ server {
     # a larger value would let the API reject mid-body, which nginx reports as 502.
     client_max_body_size 20000000;
 
+    # Every response gets the same headers from here: a location with its own add_header
+    # would drop these, so locations set none and the cache policy comes from the map.
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy same-origin always;
     add_header X-Frame-Options DENY always;
     add_header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" always;
+    add_header Cache-Control $sequence_vault_cache always;
 
     location /v1/ {
         proxy_pass http://${SEQUENCE_VAULT_API_UPSTREAM};
@@ -28,17 +38,9 @@ server {
     }
 
     location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable" always;
-        add_header X-Content-Type-Options nosniff always;
     }
 
     location / {
         try_files $uri /index.html;
-        add_header Cache-Control "no-cache" always;
-        add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy same-origin always;
-        add_header X-Frame-Options DENY always;
-        add_header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" always;
     }
 }

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Header, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -84,6 +85,10 @@ class CommitRequest(BaseModel):
     items: list[CommitItemModel] = Field(min_length=1, max_length=1000)
 
 
+class CommitPreviewRequest(BaseModel):
+    candidate_ids: list[str] = Field(min_length=1, max_length=1000)
+
+
 def _revision(if_match: str | None) -> int:
     value = (if_match or "").strip().removeprefix("W/").strip('"')
     if not value.isdigit():
@@ -96,6 +101,12 @@ def _cursor(value: str | None) -> list[Any] | None:
         return decode_cursor(value)
     except ValueError as error:
         raise ApiError(400, "malformed_request", str(error)) from error
+
+
+def attachment(name: str) -> str:
+    """Content-Disposition for a download: an ASCII fallback plus the UTF-8 name (RFC 6266)."""
+    ascii_name = "".join(c if c.isascii() and (c.isalnum() or c in "._-") else "_" for c in name)
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"
 
 
 @dataclass(frozen=True)
@@ -116,8 +127,14 @@ def create_app(container: ApiServices) -> FastAPI:
     authenticate = Authenticator(container.settings, container.read)
     max_bytes = container.policy.limits.max_file_bytes
 
+    # The interactive docs and the schema are for development; `admin openapi` builds the
+    # document with development settings.
+    docs = container.settings.is_development
     app = FastAPI(
         title="Sequence Vault API",
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
         version="1.0.0",
         description="Protein sequence import, evidence review and quality control.",
         responses={
@@ -199,11 +216,10 @@ def create_app(container: ApiServices) -> FastAPI:
     @app.get("/v1/files/{file_id}/content", tags=["uploads"])
     def original(file_id: str, user: User) -> Response:
         data, name = queries.original(user.actor, file_id)
-        safe = "".join(c if c.isascii() and (c.isalnum() or c in "._-") else "_" for c in name)
         return Response(
             data,
             media_type="application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{safe}"'},
+            headers={"Content-Disposition": attachment(name)},
         )
 
     # -- jobs -------------------------------------------------------------------------
@@ -334,6 +350,22 @@ def create_app(container: ApiServices) -> FastAPI:
         )
         return queries.candidate(user.actor, body.candidate_id)
 
+    @app.post("/v1/commits/preview", tags=["records"], response_model=schemas.CommitPreviewResponse)
+    def commit_preview(body: CommitPreviewRequest, user: User) -> Json:
+        """What a commit would write now: a new record, a new version or provenance only,
+        and whether the sequence is already stored. Nothing is written."""
+        previews = container.commits.preview(user.actor, body.candidate_ids)
+        return {
+            "items": [
+                {
+                    "candidate_id": p.candidate_id,
+                    "record_action": p.record_action and p.record_action.value,
+                    "reuses_sequence": p.reuses_sequence,
+                }
+                for p in previews
+            ]
+        }
+
     @app.post("/v1/commits", tags=["records"], response_model=schemas.CommitResponse)
     def commit(
         body: CommitRequest, user: User, idempotency_key: Annotated[str | None, Header()] = None
@@ -427,7 +459,7 @@ def create_app(container: ApiServices) -> FastAPI:
         return Response(
             text,
             media_type="text/x-fasta; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": attachment(filename)},
         )
 
     return app

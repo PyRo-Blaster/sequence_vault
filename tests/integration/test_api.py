@@ -1,5 +1,6 @@
 """P4 acceptance: the /v1 HTTP contract against PostgreSQL and the real worker."""
 
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
@@ -161,7 +162,10 @@ def test_full_fasta_journey_over_http(api: Api) -> None:
     assert provenance["transformation_log"][0]["operation"] == "uppercase"
     exported = api.call("GET", f"/v1/records/{record_id}/export", params={"version": 1})
     assert exported.text == f">A1_heavy_chain record={record_id} version=1\nMKTAYIAKQR\n"
-    assert "attachment" in exported.headers["Content-Disposition"]
+    assert exported.headers["Content-Disposition"] == (
+        'attachment; filename="A1_heavy_chain_v1.fasta"; '
+        "filename*=UTF-8''A1%20heavy%20chain_v1.fasta"
+    )
     assert_error(api.call("GET", f"/v1/records/{record_id}/export"), 400, "malformed_request")
     original = api.call("GET", f"/v1/files/{job['file_id']}/content")
     assert original.content.startswith(b">A1 heavy")
@@ -228,6 +232,62 @@ def test_identity_and_request_hygiene(api: Api) -> None:
     no_csrf = api.client.post("/v1/uploads", headers={"X-Dev-User": "alice"}, json={})
     assert_error(no_csrf, 403, "csrf_header_missing")
     assert api.call("GET", "/v1/health", user=None).json() == {"status": "ok", "dev_login": True}
+    # Sign-in names are matched without regard to case (B8).
+    assert api.call("GET", "/v1/me", user="ALICE").status_code == 200
+
+
+def test_commit_preview_separates_new_records_from_sequence_reuse(api: Api) -> None:
+    """B16: a new name with a stored sequence is a new record that reuses the sequence."""
+    first = api.upload("a.fasta", b">A\nMKTAYIAKQR\n")
+    (envelope,) = api.call("GET", f"/v1/jobs/{first}/candidates").json()["items"]
+    cid = envelope["candidate"]["candidate_id"]
+    api.call(
+        "POST", "/v1/reviews", json={"candidate_id": cid, "revision": 1, "decision": "approved"}
+    )
+    body = {"items": [{"candidate_id": cid, "revision": 1}]}
+    committed = api.call("POST", "/v1/commits", json=body, headers={"Idempotency-Key": "p"})
+    assert committed.json()["counts"] == {"COMMITTED": 1}
+
+    batch = b">B\nMKTAYIAKQR\n>C\nMKTAYIAKQW\n>A\nMKTAYIAKQR\n>D\nMKTAYIAKQW\n"
+    second = api.upload("b.fasta", batch)
+    ids = [
+        e["candidate"]["candidate_id"]
+        for e in api.call("GET", f"/v1/jobs/{second}/candidates").json()["items"]
+    ]
+    preview = api.call("POST", "/v1/commits/preview", json={"candidate_ids": [*ids, "cand_x"]})
+    assert preview.status_code == 200, preview.text
+    assert [(p["record_action"], p["reuses_sequence"]) for p in preview.json()["items"]] == [
+        ("create_record", True),  # B: stored sequence, new name
+        ("create_record", False),  # C: new sequence
+        ("add_provenance", True),  # A: same name, same sequence
+        ("create_record", True),  # D: C's sequence, committed earlier in the batch
+        (None, False),  # not visible
+    ]
+    hidden = api.call("POST", "/v1/commits/preview", user="olga", json={"candidate_ids": ids})
+    assert {p["record_action"] for p in hidden.json()["items"]} == {None}
+
+
+def test_downloads_keep_unicode_file_names(api: Api) -> None:
+    """Content-Disposition carries an ASCII fallback and the UTF-8 name (B7)."""
+    task_id = api.upload("抗体 序列.fasta", ">抗体 A\nMKTAYIAKQR\n".encode())
+    file_id = api.call("GET", f"/v1/jobs/{task_id}").json()["file_id"]
+    original = api.call("GET", f"/v1/files/{file_id}/content")
+    assert original.headers["Content-Disposition"] == (
+        'attachment; filename="_____.fasta"; '
+        "filename*=UTF-8''%E6%8A%97%E4%BD%93%20%E5%BA%8F%E5%88%97.fasta"
+    )
+
+
+def test_api_docs_are_served_only_in_development(api: Api) -> None:
+    """The schema and the interactive docs are not published outside development (B10)."""
+    assert api.call("GET", "/openapi.json", user=None).status_code == 200
+    services = api_services(api.container)
+    production = dataclasses.replace(
+        services, settings=dataclasses.replace(services.settings, env="production")
+    )
+    client = TestClient(create_app(production))
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404, path
 
 
 def test_error_codes_follow_the_contract(api: Api) -> None:
@@ -355,6 +415,10 @@ def test_proxy_identity_requires_the_shared_secret(engine: Engine, tmp_path: Pat
         "/v1/me", headers={"X-Forwarded-Email": "alice", "X-Proxy-Secret": "s3cret"}
     )
     assert ok.status_code == 200
+    upper = api.client.get(
+        "/v1/me", headers={"X-Forwarded-Email": "Alice", "X-Proxy-Secret": "s3cret"}
+    )
+    assert upper.status_code == 200
     forged = api.client.get(
         "/v1/me", headers={"X-Forwarded-Email": "alice", "X-Proxy-Secret": "guess"}
     )

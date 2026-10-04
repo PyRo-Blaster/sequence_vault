@@ -15,7 +15,13 @@ from sequence_vault.application.ports import (
 from sequence_vault.application.review import settle_task
 from sequence_vault.domain.candidate import CandidateStatus, RevisionConflict
 from sequence_vault.domain.naming import name_key
-from sequence_vault.domain.publication import RecordAction, plan_publication, sequence_sha256
+from sequence_vault.domain.publication import (
+    RecordAction,
+    StoredEntity,
+    StoredRecord,
+    plan_publication,
+    sequence_sha256,
+)
 from sequence_vault.domain.qc.engine import MoleculeType
 from sequence_vault.domain.qc.registry import QcRegistry
 from sequence_vault.domain.task import TaskStatus
@@ -45,6 +51,16 @@ class CommitOutcome:
     record_version_id: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class CommitPreview:
+    """What committing one candidate would write now. ``record_action`` is None when the
+    candidate cannot be committed (not visible, no name or no sequence)."""
+
+    candidate_id: str
+    record_action: RecordAction | None
+    reuses_sequence: bool = False
+
+
 class _Stop(Exception):
     def __init__(self, status: CommitStatus, reason: str) -> None:
         super().__init__(reason)
@@ -63,6 +79,57 @@ class CommitService:
     def commit(self, actor: Actor, key: str, items: Sequence[CommitItem]) -> list[CommitOutcome]:
         """Commit each item in its own transaction; one failure never affects another item."""
         return [self._commit_with_retry(actor, key, item) for item in items]
+
+    def preview(self, actor: Actor, candidate_ids: Sequence[str]) -> list[CommitPreview]:
+        """Plan each commit as ``commit`` would, in order, without writing. Earlier items of
+        the batch count as published, so two new candidates with one name or one sequence
+        preview as they will commit."""
+        names: dict[tuple[str, str], str] = {}
+        sequences: set[tuple[str, str]] = set()
+        previews = []
+        with self.uow_factory() as uow:
+            for candidate_id in candidate_ids:
+                row = uow.candidates.get(candidate_id)
+                qc = None if row is None else row.candidate.qc
+                if (
+                    row is None
+                    or row.tenant_id != actor.tenant_id
+                    or not uow.members.roles(actor.user_id, row.project_id)
+                    or row.candidate.name is None
+                    or qc is None
+                    or qc.normalized is None
+                    or not qc.normalized.sequence
+                ):
+                    previews.append(CommitPreview(candidate_id, None))
+                    continue
+                sequence = qc.normalized.sequence
+                key_name = name_key(row.candidate.name.value)
+                record = uow.publication.find_record(row.project_id, key_name)
+                if record is None and (row.project_id, key_name) in names:
+                    record = StoredRecord("", 1, names[(row.project_id, key_name)])
+                matches = list(
+                    uow.publication.find_entities(
+                        row.tenant_id, PUBLISHED_TYPE, sequence_sha256(sequence)
+                    )
+                )
+                if (row.tenant_id, sequence) in sequences:
+                    matches.append(StoredEntity("", sequence))
+                plan = plan_publication(
+                    self.registry,
+                    sequence,
+                    matches,
+                    record,
+                    row.candidate.resolutions.get("QC09"),
+                )
+                if plan.record_action in (RecordAction.CREATE_RECORD, RecordAction.NEW_VERSION):
+                    names[(row.project_id, key_name)] = sequence
+                sequences.add((row.tenant_id, sequence))
+                previews.append(
+                    CommitPreview(
+                        candidate_id, plan.record_action, plan.reuse_entity_id is not None
+                    )
+                )
+        return previews
 
     def _commit_with_retry(self, actor: Actor, key: str, item: CommitItem) -> CommitOutcome:
         for attempt in range(2):

@@ -1,9 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, Form, Input, InputNumber, Select, Space, Table } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Space,
+  Table,
+  Typography,
+} from "antd";
 import { useState } from "react";
 import { Link } from "react-router";
 
 import { api, unwrap, type Me, type RecordSummary } from "../../lib/api";
+import { errorText } from "../../lib/i18n";
 
 interface Filters {
   project_id?: string;
@@ -23,7 +35,10 @@ export function RecordsPage({ me }: { me: Me }) {
   });
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Card title="序列检索">
+      <Typography.Title level={1} className="sv-page-title">
+        序列检索
+      </Typography.Title>
+      <Card title="检索条件">
         <Form
           layout="inline"
           onFinish={(values: Filters) => {
@@ -36,7 +51,7 @@ export function RecordsPage({ me }: { me: Me }) {
           }}
         >
           <Form.Item name="q" label="名称">
-            <Input aria-label="名称" allowClear placeholder="名称或别名片段" />
+            <Input aria-label="名称" allowClear maxLength={200} placeholder="名称或别名片段" />
           </Form.Item>
           <Form.Item name="project_id" label="项目">
             <Select
@@ -52,7 +67,7 @@ export function RecordsPage({ me }: { me: Me }) {
           <Form.Item name="max_length">
             <InputNumber min={0} placeholder="最长" />
           </Form.Item>
-          <Form.Item name="sequence" label="精确序列" style={{ minWidth: 360 }}>
+          <Form.Item name="sequence" label="精确序列" className="sv-sequence-filter">
             <Input.TextArea
               aria-label="精确序列"
               rows={1}
@@ -65,11 +80,25 @@ export function RecordsPage({ me }: { me: Me }) {
         </Form>
       </Card>
       <Card>
+        {records.error && (
+          <Alert
+            type="error"
+            showIcon
+            message={
+              (records.error as { code?: string }).code === "malformed_request"
+                ? "检索条件不正确：名称最多 200 个字符，长度须为非负整数。"
+                : errorText(records.error)
+            }
+            style={{ marginBottom: 12 }}
+          />
+        )}
         <Table<RecordSummary>
           rowKey="record_id"
           loading={records.isLoading}
           dataSource={records.data?.items ?? []}
           pagination={false}
+          scroll={{ x: "max-content" }}
+          locale={records.error ? { emptyText: "检索失败" } : undefined}
           columns={[
             {
               title: "名称",

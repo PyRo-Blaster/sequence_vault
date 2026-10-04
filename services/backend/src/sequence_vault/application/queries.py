@@ -206,7 +206,9 @@ class QueryService:
         if version is None:
             raise NotFound("Version not found.")
         header = fasta_header(record["name"], record_id, version_no)
-        filename = re.sub(r"[^A-Za-z0-9._-]", "_", record["name"])[:80] or "record"
+        # Path separators, reserved and control characters become "_"; the API adds an ASCII
+        # fallback for clients without RFC 6266 support.
+        filename = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', "_", record["name"])[:80] or "record"
         return to_fasta(header, version["sequence"]), f"{filename}_v{version_no}.fasta"
 
     def original(self, actor: Actor, file_id: str) -> tuple[bytes, str]:

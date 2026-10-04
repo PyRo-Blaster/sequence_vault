@@ -17,7 +17,33 @@ createRoot(document.getElementById("root")!).render(
     <ConfigProvider
       locale={zhCN}
       button={{ autoInsertSpace: false }}
-      theme={{ token: { colorPrimary: "#0d6b73", borderRadius: 6 } }}
+      theme={{
+        // Text colors meet WCAG AA (4.5:1) on white; antd's defaults for links, secondary,
+        // tertiary, placeholder, warning, success and error text do not.
+        token: {
+          colorPrimary: "#0d6b73",
+          colorLink: "#0d6b73",
+          colorTextSecondary: "rgba(0, 0, 0, 0.65)",
+          colorTextDescription: "rgba(0, 0, 0, 0.65)",
+          colorTextTertiary: "rgba(0, 0, 0, 0.6)",
+          colorTextPlaceholder: "rgba(0, 0, 0, 0.55)",
+          colorWarning: "#8f5600",
+          colorSuccess: "#237804",
+          colorError: "#cf1322",
+          borderRadius: 6,
+        },
+        // Preset tag text is shade 7 of its palette; shade 9 reaches 4.5:1 on the tag fill.
+        components: {
+          Tag: {
+            gold7: "#874d00",
+            green7: "#135200",
+            red7: "#a8071a",
+            blue7: "#003eb3",
+            volcano7: "#871400",
+            purple7: "#391085",
+          },
+        },
+      }}
     >
       <AntApp>
         <QueryClientProvider client={queryClient}>

@@ -79,14 +79,16 @@ function Shell({ me }: { me: Me }) {
           theme="dark"
           mode="horizontal"
           selectedKeys={[section === "review" ? "tasks" : section]}
-          style={{ flex: 1, minWidth: 0 }}
+          className="sv-menu"
+          // Three short items fit a phone; the overflow "…" would hide the navigation.
+          disabledOverflow
           items={[
             { key: "tasks", label: <Link to="/tasks">上传与任务</Link> },
             { key: "records", label: <Link to="/records">序列检索</Link> },
             { key: "projects", label: <Link to="/projects">项目管理</Link> },
           ]}
         />
-        <Space>
+        <Space wrap>
           <Select
             aria-label="当前项目"
             value={project?.project_id}

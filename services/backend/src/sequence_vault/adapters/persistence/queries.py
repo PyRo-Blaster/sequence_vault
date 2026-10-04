@@ -38,7 +38,10 @@ class SqlReadModel:
 
     def user_by_subject(self, subject: str) -> Json | None:
         with self.engine.connect() as c:
-            row = c.execute(select(t.app_user).where(t.app_user.c.subject == subject)).first()
+            # Sign-in names are e-mail-like and compared case-insensitively (B8).
+            row = c.execute(
+                select(t.app_user).where(func.lower(t.app_user.c.subject) == subject.lower())
+            ).first()
         if row is None:
             return None
         return {
