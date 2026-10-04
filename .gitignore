@@ -30,3 +30,6 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# Local compose credentials
+infrastructure/local/compose.env

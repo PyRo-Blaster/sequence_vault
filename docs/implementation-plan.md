@@ -1,6 +1,6 @@
 # Implementation plan
 
-Status: proposed. Basis: the [design specification](design/Protein_Sequence_App_Design_v1.0_EN.md), [architecture](architecture.md), [workflow diagrams](workflow.md) and ADRs 0001–0004. Stack choices are recorded in [ADR 0005](decisions/0005-implementation-stack.md).
+Status: P1–P7 implemented (October 2026); see the per-plan documents in `docs/superpowers/plans`. Open items are in section 4. Basis: the [design specification](design/Protein_Sequence_App_Design_v1.0_EN.md), [architecture](architecture.md), [workflow diagrams](workflow.md) and ADRs 0001–0004. Stack choices are recorded in [ADR 0005](decisions/0005-implementation-stack.md).
 
 The work is split into seven sub-plans. Each one produces working, tested software on its own and is detailed as a task-by-task plan when it starts. The first, the domain core, is already detailed in [plans/2026-09-30-domain-core.md](superpowers/plans/2026-09-30-domain-core.md).
 
@@ -101,13 +101,13 @@ Dependency direction is enforced by import-linter in `make check`: `api | worker
 
 | Plan | Scope | Phase | Depends on | Acceptance cases and exit check |
 | --- | --- | --- | --- | --- |
-| P1 Domain core | Toolchain, spans, normalization, QC engine, lifecycles, publication decisions, contract mapping | B | — | Unit and property tests; the synthetic example round-trips exactly. **Detailed plan written** |
-| P2 Persistence and commit | Alembic schema, repositories, unit of work, commit transaction, idempotency keys, dedup and versions | B | P1 | Integration tests for T10, T11, T12, T13, T18: no duplicate versions, stale approvals and revoked permissions fail |
-| P3 Ingestion pipeline | Upload sessions, object storage, scanner, job table and outbox, worker loop, sandboxed FASTA/TXT parser | B | P1, P2 | T01, T02, T15, T20: worker restarts resume; cancelled tasks cannot commit |
-| P4 API and sign-in | `/v1` routes from the API catalog, error format, OIDC sessions, OpenAPI | B | P2, P3 | Contract tests per route, including 403, 409, 413 and 422 |
-| P5 Web app | Upload and task list, review workspace, records, search and export | B | P4 | Playwright E2E for single and multiple FASTA; published record equals the gold file exactly |
-| P6 Intelligent extraction | DOCX, CSV, XLSX and PDF parsers; model gateway; prompt v1; evaluation tool | C | P3, P5 | T03–T09, T14, T16, T17, T19; frozen-set metrics: whole-sequence accuracy ≥ 99%, recall ≥ 98%, name association ≥ 98% |
-| P7 Hardening and pilot | Security, load and recovery tests; deployment; backups; legacy migration | D | P1–P6 | All T01–T20, capacity budgets, recovery drill, migration reconciliation, pilot sign-off |
+| P1 Domain core | Toolchain, spans, normalization, QC engine, lifecycles, publication decisions, contract mapping | B | — | Unit and property tests; the synthetic example round-trips exactly. **Done** |
+| P2 Persistence and commit | Alembic schema, repositories, unit of work, commit transaction, idempotency keys, dedup and versions | B | P1 | Integration tests for T10, T11, T12, T13, T18: no duplicate versions, stale approvals and revoked permissions fail **Done** |
+| P3 Ingestion pipeline | Upload sessions, object storage, scanner, job table and outbox, worker loop, sandboxed FASTA/TXT parser | B | P1, P2 | T01, T02, T15, T20: worker restarts resume; cancelled tasks cannot commit **Done** |
+| P4 API and sign-in | `/v1` routes from the API catalog, error format, OIDC sessions, OpenAPI | B | P2, P3 | Contract tests per route, including 403, 409, 413 and 422 **Done** |
+| P5 Web app | Upload and task list, review workspace, records, search and export | B | P4 | Playwright E2E for single and multiple FASTA; published record equals the gold file exactly **Done** |
+| P6 Intelligent extraction | DOCX, CSV, XLSX and PDF parsers; model gateway; prompt v1; evaluation tool | C | P3, P5 | T03–T09, T14, T16, T17, T19; frozen-set metrics: whole-sequence accuracy ≥ 99%, recall ≥ 98%, name association ≥ 98% **Done** |
+| P7 Hardening and pilot | Security, load and recovery tests; deployment; backups; legacy migration | D | P1–P6 | All T01–T20, capacity budgets, recovery drill, migration reconciliation, pilot sign-off. **Done except pilot sign-off** (see section 4) |
 
 The Phase B exit gate (FASTA end to end) is P1–P5. P2 and P3 can run in parallel once P1 lands.
 

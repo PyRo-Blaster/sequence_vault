@@ -69,7 +69,7 @@
     "name": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A name exactly as found. Filename and manual names carry no block evidence; every other source must point at the characters it came from.",
+      "description": "A name exactly as found. Filename, manual and legacy-import names carry no block evidence; every other source must point at the characters it came from.",
       "properties": {
         "value": {
           "type": "string",
@@ -82,7 +82,8 @@
             "table_cell",
             "heading",
             "filename",
-            "manual"
+            "manual",
+            "legacy_import"
           ]
         },
         "evidence": {
@@ -106,7 +107,8 @@
           "source": {
             "enum": [
               "filename",
-              "manual"
+              "manual",
+              "legacy_import"
             ]
           }
         }

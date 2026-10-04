@@ -1,0 +1,23 @@
+[project]
+name = "sequence-vault"
+version = "0.1.0"
+description = "Protein sequence import, evidence review and quality control backend."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14",
+    "anthropic>=0.60",
+    "boto3>=1.35",
+    "charset-normalizer>=3.4",
+    "fastapi>=0.115",
+    "jsonschema>=4.26",
+    "lxml>=5.3",
+    "openpyxl>=3.1",
+    "pdfplumber>=0.11",
+    "psycopg[binary]>=3.2",
+    "sqlalchemy>=2.0",
+    "uvicorn[standard]>=0.32",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.17,<0.9"]
+build-backend = "uv_build"

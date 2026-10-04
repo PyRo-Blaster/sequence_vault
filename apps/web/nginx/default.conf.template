@@ -1,0 +1,49 @@
+# Rendered by the nginx image's envsubst at start-up. Only defined variables are replaced:
+# SEQUENCE_VAULT_API_UPSTREAM and SEQUENCE_VAULT_PROXY_SECRET.
+# Requests arrive from the OIDC proxy, which sets the identity header (ADR 0006).
+# Hashed build assets are immutable once found (a 404 is not); the app shell must be
+# revalidated; the API sets its own. Evaluated when headers are sent, so $status is known.
+map "$status $uri" $sequence_vault_cache {
+    "~^(200|304) /assets/" "public, max-age=31536000, immutable";
+    "~^[0-9]+ /v1/"        "";
+    default                "no-cache";
+}
+
+server {
+    listen 8080;
+    server_tokens off;
+    root /usr/share/nginx/html;
+
+    # Exactly config/processing-policy.v1.json max_file_bytes. nginx answers 413 itself;
+    # a larger value would let the API reject mid-body, which nginx reports as 502.
+    client_max_body_size 20000000;
+
+    # Every response gets the same headers from here: a location with its own add_header
+    # would drop these, so locations set none and the cache policy comes from the map.
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy same-origin always;
+    add_header X-Frame-Options DENY always;
+    add_header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" always;
+    add_header Cache-Control $sequence_vault_cache always;
+
+    location /v1/ {
+        proxy_pass http://${SEQUENCE_VAULT_API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # Only this hop knows the secret, so the API trusts identity only via the proxy.
+        proxy_set_header X-Proxy-Secret "${SEQUENCE_VAULT_PROXY_SECRET}";
+        # A client-sent X-Proxy-Secret is overwritten above; never forward development login.
+        proxy_set_header X-Dev-User "";
+        # The API sends nosniff too; the server-level header is the one kept.
+        proxy_hide_header X-Content-Type-Options;
+        proxy_read_timeout 120s;
+        proxy_request_buffering on;
+    }
+
+    location /assets/ {
+    }
+
+    location / {
+        try_files $uri /index.html;
+    }
+}

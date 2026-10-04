@@ -1,0 +1,120 @@
+{
+  "set": "synthetic-dev",
+  "files": [
+    {
+      "path": "standard_multi.fasta",
+      "format": "fasta",
+      "standard": true,
+      "records": [
+        {
+          "name": "Ab1_heavy",
+          "sequence": "EVQLVESGGGLVQPGGSLRLSCAASGFTFSSYAMSWVRQAPGKGLEWVS"
+        },
+        {
+          "name": "Ab1_light",
+          "sequence": "DIQMTQSPSSLSASVGDRVTITCRASQSISSYLNWYQQKPGKAPKLLIY"
+        },
+        {
+          "name": "Enzyme_7",
+          "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQ"
+        }
+      ]
+    },
+    {
+      "path": "wrapped.fasta",
+      "format": "fasta",
+      "standard": true,
+      "records": [
+        {
+          "name": "Enzyme_8",
+          "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQ"
+        }
+      ]
+    },
+    {
+      "path": "Ab2_heavy.txt",
+      "format": "txt",
+      "records": [
+        {
+          "name": "Ab2_heavy",
+          "sequence": "EVQLVESGGGLVQPGGSLRLSCAASGFTFSSYAMSWVRQAPGKGLEWVS"
+        }
+      ]
+    },
+    {
+      "path": "notes.txt",
+      "format": "txt",
+      "records": [
+        {
+          "name": "Ab3_light",
+          "sequence": "DIQMTQSPSSLSASVGDRVTITCRASQSISSYLNWYQQKPGKAPKLLIY"
+        },
+        {
+          "name": "Ab4 heavy",
+          "sequence": "EVQLVESGGGLVQPGGSLRLSCAASGFTFSSYAMSWVRQAPGKGLEWVS"
+        }
+      ]
+    },
+    {
+      "path": "truncated.txt",
+      "format": "txt",
+      "records": [
+        {
+          "name": "Ab5 partial",
+          "sequence": "EVQLVESGGGLVQPGGSLRLSCAASGFTFS...",
+          "blocking_rules": [
+            "QC05"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "report.docx",
+      "format": "docx",
+      "records": [
+        {
+          "name": "Antibody Ab6",
+          "sequence": "EVQLVESGGGLVQPGGSLRLSCAASGFTFSSYAMSWVRQAPGKGLEWVS"
+        },
+        {
+          "name": "Enzyme 9",
+          "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQ"
+        }
+      ]
+    },
+    {
+      "path": "clones.xlsx",
+      "format": "xlsx",
+      "records": [
+        {
+          "name": "Ab7",
+          "sequence": "DIQMTQSPSSLSASVGDRVTITCRASQSISSYLNWYQQKPGKAPKLLIY"
+        },
+        {
+          "name": "Ab8",
+          "sequence": "EVQLVESGGGLVQPGGSLRLSCAASGFTFSSYAMSWVRQAPGKGLEWVS"
+        }
+      ]
+    },
+    {
+      "path": "clones.csv",
+      "format": "csv",
+      "records": [
+        {
+          "name": "Ab9",
+          "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQ"
+        }
+      ]
+    },
+    {
+      "path": "summary.pdf",
+      "format": "text_pdf",
+      "records": [
+        {
+          "name": "Enzyme 10",
+          "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQ"
+        }
+      ]
+    }
+  ]
+}
