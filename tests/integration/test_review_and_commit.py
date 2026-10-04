@@ -247,3 +247,39 @@ def test_the_residue_limit_holds_for_edits_and_commits(s: Setup) -> None:
     (outcome,) = tighter.commit(s.alice, "k1", [CommitItem(cid, 1)])
     assert (outcome.status, outcome.reason) == (CommitStatus.FAILED, "sequence_limit")
     assert s.world.count("record_version") == 0
+
+
+def preview(s: Setup, ids: list[str], actor: Actor | None = None) -> list[tuple[Any, bool]]:
+    return [
+        (p.record_action and p.record_action.value, p.reuses_sequence)
+        for p in s.commits.preview(actor or s.alice, ids)
+    ]
+
+
+def test_preview_does_not_reveal_a_sequence_stored_only_in_a_hidden_project(s: Setup) -> None:
+    """T18: reuse shows only from the caller's own project; the commit still deduplicates."""
+    _, (own,) = s.approved([("Own", "MKTAYIAKQR")])
+    assert preview(s, [own]) == [("create_record", False)]
+    hidden = s.world.project("Enzymes")
+    olga = s.world.user("olga", {hidden: ["uploader", "reviewer"]})
+    _, (private,) = s.approved([("Private", "MKTAYIAKQR")], project=hidden, actor=olga)
+    assert s.commit(private, actor=olga).status is CommitStatus.COMMITTED
+    assert preview(s, [own]) == [("create_record", False)]
+    assert s.commit(own, key="k2").status is CommitStatus.COMMITTED
+    assert s.world.count("sequence_entity") == 1
+
+
+def test_preview_follows_earlier_batch_changes_to_an_existing_record(s: Setup) -> None:
+    """Two new versions of one name in one batch: the second only adds provenance."""
+    _, (v1,) = s.approved([("Ab1", "MKTAYIAKQR")])
+    assert s.commit(v1).status is CommitStatus.COMMITTED
+    _, ids = s.world.fasta(s.project, s.alice, [("Ab1", "MKTAYIAKQW"), ("Ab1", "MKTAYIAKQW")])
+    items = []
+    for candidate_id in ids:
+        row = s.review.resolve(s.alice, candidate_id, 1, "QC09", "create_new_version")
+        row = s.review.decide(s.alice, candidate_id, row.candidate.revision, approve=True)
+        items.append(CommitItem(candidate_id, row.candidate.revision))
+    assert preview(s, ids) == [("new_version", False), ("add_provenance", True)]
+    outcomes = s.commits.commit(s.alice, "k2", items)
+    assert [o.status for o in outcomes] == [CommitStatus.COMMITTED] * 2
+    assert outcomes[0].record_version_id == outcomes[1].record_version_id

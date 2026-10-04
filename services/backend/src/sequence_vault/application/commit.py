@@ -82,11 +82,17 @@ class CommitService:
 
     def preview(self, actor: Actor, candidate_ids: Sequence[str]) -> list[CommitPreview]:
         """Plan each commit as ``commit`` would, in order, without writing. Earlier items of
-        the batch that will commit count as published, so two new candidates with one name or
-        one sequence preview as they will commit. A candidate that cannot commit now (not
-        approved, blocked, over the limit, not a confirmed protein) previews as None."""
-        names: dict[tuple[str, str], str] = {}
-        sequences: set[tuple[str, str]] = set()
+        the batch that will commit count as published: a later item sees the record version
+        and the sequence they write. A candidate that cannot commit now (not approved,
+        blocked, over the limit, not a confirmed protein) previews as None.
+
+        ``reuses_sequence`` looks only at the candidate's own project, like QC10: the commit
+        deduplicates tenant-wide, but a match in a project the caller cannot see must not
+        show (design section 8, T18)."""
+        # Simulated current sequence of each (project, name_key) the batch writes, and the
+        # (project, sequence) pairs it stores.
+        current: dict[tuple[str, str], tuple[int, str]] = {}
+        stored: set[tuple[str, str]] = set()
         previews = []
         with self.uow_factory() as uow:
             for candidate_id in candidate_ids:
@@ -99,30 +105,34 @@ class CommitService:
                     previews.append(CommitPreview(candidate_id, None))
                     continue
                 sequence = qc.normalized.sequence
-                key_name = name_key(row.candidate.name.value)
-                record = uow.publication.find_record(row.project_id, key_name)
-                if record is None and (row.project_id, key_name) in names:
-                    record = StoredRecord("", 1, names[(row.project_id, key_name)])
-                matches = list(
-                    uow.publication.find_entities(
-                        row.tenant_id, PUBLISHED_TYPE, sequence_sha256(sequence)
+                record_key = (row.project_id, name_key(row.candidate.name.value))
+                record = uow.publication.find_record(*record_key)
+                if record_key in current:  # an earlier item of the batch wrote this record
+                    version_no, latest = current[record_key]
+                    record = StoredRecord(record.record_id if record else "", version_no, latest)
+                visible = list(
+                    uow.publication.find_entities_in_project(
+                        row.project_id, PUBLISHED_TYPE, sequence_sha256(sequence)
                     )
                 )
-                if (row.tenant_id, sequence) in sequences:
-                    matches.append(StoredEntity("", sequence))
+                if (row.project_id, sequence) in stored:
+                    visible.append(StoredEntity("", sequence))
                 plan = plan_publication(
                     self.registry,
                     sequence,
-                    matches,
+                    visible,
                     record,
                     row.candidate.resolutions.get("QC09"),
                 )
                 if plan.record_action in (RecordAction.NEEDS_DECISION, RecordAction.CANCEL):
                     previews.append(CommitPreview(candidate_id, plan.record_action))
                     continue
-                if plan.record_action in (RecordAction.CREATE_RECORD, RecordAction.NEW_VERSION):
-                    names[(row.project_id, key_name)] = sequence
-                sequences.add((row.tenant_id, sequence))
+                if plan.record_action is RecordAction.CREATE_RECORD:
+                    current[record_key] = (1, sequence)
+                elif plan.record_action is RecordAction.NEW_VERSION:
+                    assert record is not None
+                    current[record_key] = (record.current_version_no + 1, sequence)
+                stored.add((row.project_id, sequence))
                 previews.append(
                     CommitPreview(
                         candidate_id, plan.record_action, plan.reuse_entity_id is not None
