@@ -1,5 +1,6 @@
 """Composition root: build adapters and services from Settings."""
 
+import logging
 from dataclasses import dataclass
 from functools import partial
 
@@ -11,6 +12,7 @@ from sequence_vault.adapters.parsers.registry import enabled_formats
 from sequence_vault.adapters.parsers.sandbox import SandboxedParser
 from sequence_vault.adapters.persistence.admin import SqlProjectAdmin
 from sequence_vault.adapters.persistence.jobs import JobQueue
+from sequence_vault.adapters.persistence.migrate import upgrade
 from sequence_vault.adapters.persistence.queries import SqlReadModel
 from sequence_vault.adapters.persistence.repositories import SqlUnitOfWorkFactory
 from sequence_vault.adapters.security.clamd import ClamdScanner, DevelopmentScanner
@@ -28,6 +30,8 @@ from sequence_vault.application.review import ReviewService
 from sequence_vault.application.uploads import UploadService, accepted_extensions
 from sequence_vault.domain.qc.registry import QcRegistry
 from sequence_vault.settings import Settings
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -105,6 +109,16 @@ def build_model(settings: Settings) -> LocatorModel | None:
         effort=settings.ai_effort,
         server_fallback=settings.ai_provider == "anthropic",
     )
+
+
+def prepare(settings: Settings, store: ObjectStore) -> None:
+    """Start-up steps that replace one-shot deployment jobs, each enabled by a setting:
+    apply migrations (under a lock, so replicas may all try) and create the S3 bucket."""
+    if settings.migrate_on_start:
+        upgrade(settings.database_url)
+        log.info("database migrations applied")
+    if settings.create_bucket and isinstance(store, S3ObjectStore) and store.ensure_bucket():
+        log.info("object storage bucket created")
 
 
 def build(settings: Settings, *, engine: Engine | None = None) -> Container:

@@ -1,13 +1,19 @@
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from sequence_vault.adapters.persistence.migrate import migrations_dir, upgrade
 from sequence_vault.adapters.persistence.tables import metadata
+from sequence_vault.settings import with_password
+
+VERSIONS = migrations_dir() / "migrations/versions"
 
 SEED = """
 INSERT INTO tenant VALUES ('t1', 'Dept');
@@ -114,3 +120,32 @@ def test_migration_0005_stops_on_sign_in_names_differing_in_case(
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == (
             "0004"
         )
+
+
+def test_replicas_migrating_at_start_up_take_turns(admin_url: str) -> None:
+    """Several API replicas may run upgrade() at once on an empty database; the advisory
+    lock makes one migrate and the others find nothing to do."""
+    name = f"sv_race_{uuid.uuid4().hex[:8]}"
+    admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin.connect() as connection:
+        connection.execute(text(f"CREATE DATABASE {name}"))
+    url = make_url(admin_url).set(database=name).render_as_string(hide_password=False)
+    try:
+        with ThreadPoolExecutor(4) as pool:
+            list(pool.map(lambda _: upgrade(url), range(4)))
+        engine = create_engine(url)
+        with engine.connect() as connection:
+            head = connection.execute(text("SELECT version_num FROM alembic_version")).all()
+        engine.dispose()
+        assert head == [(sorted(p.name[:4] for p in VERSIONS.glob("0*.py"))[-1],)]
+    finally:
+        with admin.connect() as connection:
+            connection.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"))
+        admin.dispose()
+
+
+def test_migrations_accept_a_percent_encoded_password(database_url: str) -> None:
+    """Alembic's ConfigParser must not interpolate the "%" of an encoded password."""
+    url = with_password(make_url(database_url).set(password=None).render_as_string(), "p%a:s/s")
+    assert "%25" in url
+    upgrade(url)  # the test cluster trusts local connections; parsing is what is tested

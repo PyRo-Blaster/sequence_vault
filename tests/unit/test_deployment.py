@@ -51,3 +51,29 @@ def test_compose_never_enables_development_shortcuts() -> None:
     text = COMPOSE.read_text()
     assert "SEQUENCE_VAULT_ENV: production" in text
     assert "DEV_LOGIN" not in text and "SCANNER: development" not in text
+
+
+def services(text: str) -> dict[str, str]:
+    """Top-level Compose services and their bodies (two-space keys under `services:`)."""
+    body = text.split("\nservices:\n", 1)[1].split("\nnetworks:", 1)[0]
+    parts = re.split(r"^  ([a-z0-9-]+):\n", body, flags=re.M)
+    return dict(zip(parts[1::2], parts[2::2], strict=True))
+
+
+def test_servers_pull_images_and_the_api_replaces_the_one_shot_jobs() -> None:
+    """compose.yaml builds nothing; the API migrates and creates the bucket at start-up."""
+    text = COMPOSE.read_text()
+    assert "build:" not in text
+    found = services(text)
+    assert "migrate" not in found and "minio-bucket" not in found
+    assert 'SEQUENCE_VAULT_MIGRATE_ON_START: "true"' in found["api"]
+    assert 'SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET: "true"' in found["api"]
+    assert "api: {condition: service_healthy}" in found["worker"]
+    # Every service running an app image can be built from source with the override.
+    app = {
+        n for n, body in found.items() if "<<: *backend" in body or "SEQUENCE_VAULT_IMAGES" in body
+    }
+    assert app == {"api", "worker", "web"}
+    assert text.count("${SEQUENCE_VAULT_IMAGES:-ghcr.io/pyro-blaster/sequence-vault}/") == 2
+    build = services((COMPOSE.parent / "compose.build.yaml").read_text() + "\nnetworks:")
+    assert set(build) == app

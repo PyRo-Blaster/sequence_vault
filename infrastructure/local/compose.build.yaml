@@ -1,0 +1,11 @@
+# Build the app images from this checkout instead of pulling them:
+#
+#   docker compose -f infrastructure/local/compose.yaml -f infrastructure/local/compose.build.yaml \
+#     --env-file infrastructure/local/compose.env up --build
+services:
+  api:
+    build: {context: ../.., dockerfile: services/backend/Dockerfile}
+  worker:
+    build: {context: ../.., dockerfile: services/backend/Dockerfile}
+  web:
+    build: {context: ../../apps/web}

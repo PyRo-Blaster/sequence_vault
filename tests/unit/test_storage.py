@@ -25,3 +25,15 @@ def test_s3_store_round_trip_and_short_links() -> None:
         assert store.exists("sources/t1/file_1") and not store.exists("missing")
         url = store.presigned_url("sources/t1/file_1", seconds=3600)
         assert "X-Amz-Expires=300" in url
+
+
+@pytest.mark.parametrize("region", ["us-east-1", "eu-central-1"])
+def test_s3_store_creates_a_missing_bucket_once_with_versioning(region: str) -> None:
+    with mock_aws():
+        store = S3ObjectStore("vault", access_key="test", secret_key="test", region=region)
+        assert store.ensure_bucket() is True
+        assert store.ensure_bucket() is False
+        versioning = store.client.get_bucket_versioning(Bucket="vault")
+        assert versioning["Status"] == "Enabled"
+        store.put("k", b"data")
+        assert store.get("k") == b"data"
