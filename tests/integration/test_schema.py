@@ -144,8 +144,18 @@ def test_replicas_migrating_at_start_up_take_turns(admin_url: str) -> None:
         admin.dispose()
 
 
-def test_migrations_accept_a_percent_encoded_password(database_url: str) -> None:
+def test_migrations_accept_a_percent_encoded_password(admin_url: str, database_url: str) -> None:
     """Alembic's ConfigParser must not interpolate the "%" of an encoded password."""
-    url = with_password(make_url(database_url).set(password=None).render_as_string(), "p%a:s/s")
-    assert "%25" in url
-    upgrade(url)  # the test cluster trusts local connections; parsing is what is tested
+    role, password = f"sv_pct_{uuid.uuid4().hex[:8]}", "p%a:s/s"
+    admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin.connect() as connection:
+        connection.execute(text(f"CREATE ROLE {role} LOGIN SUPERUSER PASSWORD '{password}'"))
+    try:
+        base = make_url(database_url).set(username=role, password=None)
+        url = with_password(base.render_as_string(), password)
+        assert "%25" in url
+        upgrade(url)  # already at head: connecting and parsing the URL is what is tested
+    finally:
+        with admin.connect() as connection:
+            connection.execute(text(f"DROP ROLE {role}"))
+        admin.dispose()
