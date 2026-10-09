@@ -1,18 +1,21 @@
-# Local, production-shaped stack: OIDC proxy -> web (nginx) -> API; worker; PostgreSQL,
-# MinIO (S3) and ClamAV. Every port binds to loopback. Credentials come from an ignored
-# env file: cp infrastructure/local/compose.env.example infrastructure/local/compose.env
+# Production-shaped stack: OIDC proxy -> web (nginx) -> API; worker; PostgreSQL, MinIO (S3)
+# and ClamAV. Every port binds to loopback. Credentials come from an ignored env file:
+# cp infrastructure/local/compose.env.example infrastructure/local/compose.env
 #
-#   docker compose -f infrastructure/local/compose.yaml --env-file infrastructure/local/compose.env up --build
+# The app images are built by CI and pulled; nothing is built on the server:
+#
+#   docker compose -f infrastructure/local/compose.yaml --env-file infrastructure/local/compose.env pull
+#   docker compose -f infrastructure/local/compose.yaml --env-file infrastructure/local/compose.env up -d
+#
+# To build from this checkout instead, add `-f infrastructure/local/compose.build.yaml` and `--build`.
+# The API applies migrations and creates the bucket when it starts.
 #
 # PostgreSQL and MinIO live on internal networks only; use `docker compose exec` to reach them.
 # Image tags are pinned; pin digests (image@sha256:...) when promoting to a shared environment.
 name: sequence-vault
 
 x-backend: &backend
-  build:
-    context: ../..
-    dockerfile: services/backend/Dockerfile
-  image: sequence-vault/backend:local
+  image: ${SEQUENCE_VAULT_IMAGES:-ghcr.io/pyro-blaster/sequence-vault}/backend:${SEQUENCE_VAULT_VERSION:-main}
   environment: &backend-env
     SEQUENCE_VAULT_ENV: production
     # The password is passed on its own and encoded by the backend, so any character is safe.
@@ -64,19 +67,6 @@ services:
     networks: [data]
     restart: unless-stopped
 
-  minio-bucket:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
-    depends_on:
-      minio: {condition: service_healthy}
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
-    # Credentials go to `mc alias set` as arguments, not inside a URL, so any character is
-    # safe. "$$" defers expansion to the container's shell.
-    # Private bucket with versioning, so an overwritten or deleted object can be recovered.
-    entrypoint: ["/bin/sh", "-c", "mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" >/dev/null && mc mb --ignore-existing local/sequence-vault-sources && mc version enable local/sequence-vault-sources && mc anonymous set none local/sequence-vault-sources"]
-    networks: [data]
-
   clamav:
     image: clamav/clamav:1.4.3
     healthcheck:
@@ -89,23 +79,21 @@ services:
     networks: [data, egress]
     restart: unless-stopped
 
-  migrate:
-    <<: *backend
-    command: ["python", "-m", "sequence_vault.entrypoints.admin", "migrate"]
-    depends_on:
-      postgres: {condition: service_healthy}
-    networks: [data]
-    restart: "no"
-
   api:
     <<: *backend
+    environment:
+      <<: *backend-env
+      # Replace the one-shot jobs: migrations run under a lock, so replicas may all start.
+      SEQUENCE_VAULT_MIGRATE_ON_START: "true"
+      SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET: "true"
     depends_on:
-      migrate: {condition: service_completed_successfully}
-      minio-bucket: {condition: service_completed_successfully}
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
       clamav: {condition: service_healthy}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health', timeout=3)"]
       interval: 10s
+      start_period: 120s
       retries: 10
     # Reachable only from the web container on the internal app network.
     networks: [app, data]
@@ -114,16 +102,15 @@ services:
     <<: *backend
     command: ["python", "-m", "sequence_vault.entrypoints.worker_main"]
     depends_on:
-      migrate: {condition: service_completed_successfully}
-      minio-bucket: {condition: service_completed_successfully}
+      # Healthy means migrated and the bucket exists.
+      api: {condition: service_healthy}
       clamav: {condition: service_healthy}
     # Parsers run in this container: no route to the internet (ADR 0003). Enabling the model
     # gateway needs an approved egress path to the provider only.
     networks: [data]
 
   web:
-    build: {context: ../../apps/web}
-    image: sequence-vault/web:local
+    image: ${SEQUENCE_VAULT_IMAGES:-ghcr.io/pyro-blaster/sequence-vault}/web:${SEQUENCE_VAULT_VERSION:-main}
     environment:
       SEQUENCE_VAULT_API_UPSTREAM: api:8000
       SEQUENCE_VAULT_PROXY_SECRET: ${SEQUENCE_VAULT_PROXY_SECRET:?set SEQUENCE_VAULT_PROXY_SECRET}

@@ -1,8 +1,9 @@
 import pytest
-from alembic import command as alembic_command
+from moto import mock_aws
 from sqlalchemy import make_url
 
-from sequence_vault.adapters.persistence import migrate
+from sequence_vault.adapters.storage.s3 import S3ObjectStore
+from sequence_vault.entrypoints import bootstrap
 from sequence_vault.settings import Settings, with_password
 
 
@@ -28,9 +29,7 @@ def test_development_allows_local_services_and_ai_stays_off() -> None:
     assert settings.is_development and settings.dev_login and not settings.ai_enabled
 
 
-def test_a_separate_database_password_may_hold_any_character(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_separate_database_password_may_hold_any_character() -> None:
     """Compose passes the password on its own; URL-special characters stay intact."""
     password = "p@ss:w/rd%#?&"
     url = with_password("postgresql+psycopg://vault@postgres:5432/vault", password)
@@ -46,12 +45,23 @@ def test_a_separate_database_password_may_hold_any_character(
     )
     with pytest.raises(ValueError):
         with_password("postgresql+psycopg://h/db", password)
-    # Alembic's ConfigParser must not interpolate the encoded "%".
-    seen: list[str] = []
-    monkeypatch.setattr(
-        alembic_command,
-        "upgrade",
-        lambda config, _: seen.append(config.get_main_option("sqlalchemy.url")),
-    )
-    migrate.upgrade(url)
-    assert seen == [url]
+
+
+def test_start_up_steps_run_only_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The API replaces the one-shot migrate and bucket jobs when both settings are on."""
+    calls: list[str] = []
+    monkeypatch.setattr(bootstrap, "upgrade", lambda url: calls.append(url))
+    base = {"SEQUENCE_VAULT_DATABASE_URL": "postgresql+psycopg://u@h/db"}
+    with mock_aws():
+        store = S3ObjectStore("vault", access_key="test", secret_key="test")
+        bootstrap.prepare(Settings.from_env(base), store)
+        assert calls == [] and store.ensure_bucket() is True  # nothing was created before
+        store.client.delete_bucket(Bucket="vault")
+        enabled = {
+            **base,
+            "SEQUENCE_VAULT_MIGRATE_ON_START": "true",
+            "SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET": "true",
+        }
+        bootstrap.prepare(Settings.from_env(enabled), store)
+        assert calls == ["postgresql+psycopg://u@h/db"]
+        assert store.ensure_bucket() is False

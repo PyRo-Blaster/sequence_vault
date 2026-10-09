@@ -33,6 +33,31 @@ class S3ObjectStore:
             config=Config(signature_version="s3v4", retries={"max_attempts": 3}),
         )
 
+    def ensure_bucket(self) -> bool:
+        """Create the bucket, private and versioned, if it does not exist. True if created.
+
+        For a self-hosted MinIO; with a managed S3 bucket, provision it outside the app and
+        leave SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET off."""
+        try:
+            self.client.head_bucket(Bucket=self.bucket)
+            return False
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") not in {"404", "NoSuchBucket"}:
+                raise
+        region = self.client.meta.region_name
+        if region and region != "us-east-1":
+            self.client.create_bucket(
+                Bucket=self.bucket,
+                CreateBucketConfiguration={"LocationConstraint": region},  # type: ignore[typeddict-item]
+            )
+        else:
+            self.client.create_bucket(Bucket=self.bucket)
+        # Versioning keeps overwritten or deleted objects recoverable.
+        self.client.put_bucket_versioning(
+            Bucket=self.bucket, VersioningConfiguration={"Status": "Enabled"}
+        )
+        return True
+
     def put(self, key: str, data: bytes) -> None:
         self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
 

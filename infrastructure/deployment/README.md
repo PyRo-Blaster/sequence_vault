@@ -1,11 +1,16 @@
 # Deployment
 
-Two images:
+Two images. CI publishes both to `ghcr.io/pyro-blaster/sequence-vault/` on every commit to `main` that passes all checks, tagged with the commit SHA and `main`.
 
 | Image | Build | Runs |
 |---|---|---|
-| Backend | `docker build -f services/backend/Dockerfile .` (repository root) | API: default command. Worker: `python -m sequence_vault.entrypoints.worker_main`. Migrations: `python -m sequence_vault.entrypoints.admin migrate` |
-| Web | `docker build apps/web` | nginx on port 8080: the static app, plus `/v1` forwarded to `SEQUENCE_VAULT_API_UPSTREAM` with `X-Proxy-Secret` |
+| `backend` | `docker build -f services/backend/Dockerfile .` (repository root) | API: default command. Worker: `python -m sequence_vault.entrypoints.worker_main`. Migrations: `python -m sequence_vault.entrypoints.admin migrate` |
+| `web` | `docker build apps/web` | nginx on port 8080: the static app, plus `/v1` forwarded to `SEQUENCE_VAULT_API_UPSTREAM` with `X-Proxy-Secret` |
+
+**Start-up steps.** Two API settings replace one-shot jobs:
+
+- `SEQUENCE_VAULT_MIGRATE_ON_START=true`: the API applies migrations before serving. A PostgreSQL advisory lock makes concurrent replicas take turns. Leave it off to run `admin migrate` yourself, for example as a separate release step.
+- `SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET=true`: the API creates the bucket, private and versioned, if it is missing. Use it for a self-hosted MinIO. With managed S3, provision the bucket outside the app and give the app credentials that cannot create buckets.
 
 `infrastructure/local/compose.yaml` is the reference topology; translate it to the target platform. Requirements, all checked by tests or CI where possible:
 
