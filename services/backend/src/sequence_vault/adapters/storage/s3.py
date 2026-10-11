@@ -1,10 +1,13 @@
 """S3-compatible object store (MinIO locally)."""
 
+import logging
 from typing import TYPE_CHECKING
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
@@ -32,6 +35,46 @@ class S3ObjectStore:
             region_name=region or "us-east-1",
             config=Config(signature_version="s3v4", retries={"max_attempts": 3}),
         )
+
+    def ensure_bucket(self) -> bool:
+        """Make sure the bucket exists and is versioned, at every start. True if created.
+
+        Versioning keeps overwritten or deleted objects recoverable, so it is switched on
+        even for an existing bucket (one created by hand, or by a start that stopped half-way).
+        Concurrent callers are fine: losing the race to create the bucket counts as success.
+        For a self-hosted MinIO; with a managed S3 bucket, provision it outside the app and
+        leave SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET off."""
+        created = False
+        try:
+            self.client.head_bucket(Bucket=self.bucket)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") not in {"404", "NoSuchBucket"}:
+                raise
+            created = self._create_bucket()
+        status = self.client.get_bucket_versioning(Bucket=self.bucket).get("Status")
+        if status != "Enabled":
+            self.client.put_bucket_versioning(
+                Bucket=self.bucket, VersioningConfiguration={"Status": "Enabled"}
+            )
+            log.warning("object storage versioning was %s; enabled it", status or "off")
+        return created
+
+    def _create_bucket(self) -> bool:
+        region = self.client.meta.region_name
+        try:
+            if region and region != "us-east-1":
+                self.client.create_bucket(
+                    Bucket=self.bucket,
+                    CreateBucketConfiguration={"LocationConstraint": region},  # type: ignore[typeddict-item]
+                )
+            else:
+                self.client.create_bucket(Bucket=self.bucket)
+        except ClientError as error:
+            code = error.response.get("Error", {}).get("Code")
+            if code in {"BucketAlreadyOwnedByYou", "BucketAlreadyExists"}:
+                return False  # another replica created it first
+            raise
+        return True
 
     def put(self, key: str, data: bytes) -> None:
         self.client.put_object(Bucket=self.bucket, Key=key, Body=data)

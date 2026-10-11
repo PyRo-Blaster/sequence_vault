@@ -52,6 +52,8 @@ class Settings:
     trusted_identity_header: str
     proxy_secret: str | None
     dev_login: bool
+    migrate_on_start: bool = False
+    create_bucket: bool = False
 
     @property
     def is_development(self) -> bool:
@@ -94,6 +96,8 @@ class Settings:
             trusted_identity_header=env.get("SEQUENCE_VAULT_IDENTITY_HEADER", "X-Forwarded-Email"),
             proxy_secret=env.get("SEQUENCE_VAULT_PROXY_SECRET") or None,
             dev_login=_flag(env.get("SEQUENCE_VAULT_DEV_LOGIN")),
+            migrate_on_start=_flag(env.get("SEQUENCE_VAULT_MIGRATE_ON_START")),
+            create_bucket=_flag(env.get("SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET")),
         )
         settings.validate()
         return settings
