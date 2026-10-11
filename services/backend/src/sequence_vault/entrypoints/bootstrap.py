@@ -12,7 +12,7 @@ from sequence_vault.adapters.parsers.registry import enabled_formats
 from sequence_vault.adapters.parsers.sandbox import SandboxedParser
 from sequence_vault.adapters.persistence.admin import SqlProjectAdmin
 from sequence_vault.adapters.persistence.jobs import JobQueue
-from sequence_vault.adapters.persistence.migrate import upgrade
+from sequence_vault.adapters.persistence.migrate import DatabaseAhead, upgrade
 from sequence_vault.adapters.persistence.queries import SqlReadModel
 from sequence_vault.adapters.persistence.repositories import SqlUnitOfWorkFactory
 from sequence_vault.adapters.security.clamd import ClamdScanner, DevelopmentScanner
@@ -115,8 +115,14 @@ def prepare(settings: Settings, store: ObjectStore) -> None:
     """Start-up steps that replace one-shot deployment jobs, each enabled by a setting:
     apply migrations (under a lock, so replicas may all try) and create the S3 bucket."""
     if settings.migrate_on_start:
-        upgrade(settings.database_url)
-        log.info("database migrations applied")
+        try:
+            before, after = upgrade(settings.database_url)
+        except DatabaseAhead as error:
+            # A rollback to an older image: its code runs on the newer, additive schema.
+            log.warning("%s Not migrating; running against it.", error)
+        else:
+            if before != after:
+                log.info("database migrated from %s to %s", before or "empty", after)
     if settings.create_bucket and isinstance(store, S3ObjectStore) and store.ensure_bucket():
         log.info("object storage bucket created")
 

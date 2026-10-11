@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError, IntegrityError, NoResultFound, SQLAlchemyError
 
 from sequence_vault.adapters.persistence.admin import Provisioning
-from sequence_vault.adapters.persistence.migrate import upgrade
+from sequence_vault.adapters.persistence.migrate import DatabaseAhead, upgrade
 from sequence_vault.application.authorization import Role
 from sequence_vault.settings import Settings
 
@@ -65,6 +65,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         return _run(args)
+    except DatabaseAhead as error:
+        print(f"error: {error} Use that release's image to migrate.", file=sys.stderr)
     except NoResultFound:
         print("error: no such project", file=sys.stderr)
     except IntegrityError as exc:

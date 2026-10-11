@@ -9,8 +9,8 @@ Two images. CI publishes both to `ghcr.io/pyro-blaster/sequence-vault/` on every
 
 **Start-up steps.** Two API settings replace one-shot jobs:
 
-- `SEQUENCE_VAULT_MIGRATE_ON_START=true`: the API applies migrations before serving. A PostgreSQL advisory lock makes concurrent replicas take turns. Leave it off to run `admin migrate` yourself, for example as a separate release step.
-- `SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET=true`: the API creates the bucket, private and versioned, if it is missing. Use it for a self-hosted MinIO. With managed S3, provision the bucket outside the app and give the app credentials that cannot create buckets.
+- `SEQUENCE_VAULT_MIGRATE_ON_START=true`: the API applies migrations before serving. A PostgreSQL advisory lock makes concurrent replicas take turns, and a waiting replica logs that it is waiting. An older image on a database a newer release migrated logs a warning and serves without migrating, so rollbacks work. Leave it off to run `admin migrate` yourself, for example as a separate release step.
+- `SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET=true`: the API creates the bucket, private, if it is missing, and turns versioning on at every start if it is off. Use it for a self-hosted MinIO. With managed S3, provision the bucket outside the app and give the app credentials that cannot create buckets.
 
 `infrastructure/local/compose.yaml` is the reference topology; translate it to the target platform. Requirements, all checked by tests or CI where possible:
 

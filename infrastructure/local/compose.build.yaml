@@ -6,6 +6,7 @@ services:
   api:
     build: {context: ../.., dockerfile: services/backend/Dockerfile}
   worker:
-    build: {context: ../.., dockerfile: services/backend/Dockerfile}
+    # Same image as the api, built once above.
+    pull_policy: never
   web:
     build: {context: ../../apps/web}

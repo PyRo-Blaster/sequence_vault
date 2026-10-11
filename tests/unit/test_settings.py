@@ -50,7 +50,12 @@ def test_a_separate_database_password_may_hold_any_character() -> None:
 def test_start_up_steps_run_only_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     """The API replaces the one-shot migrate and bucket jobs when both settings are on."""
     calls: list[str] = []
-    monkeypatch.setattr(bootstrap, "upgrade", lambda url: calls.append(url))
+
+    def fake_upgrade(url: str) -> tuple[str | None, str]:
+        calls.append(url)
+        return None, "0005"
+
+    monkeypatch.setattr(bootstrap, "upgrade", fake_upgrade)
     base = {"SEQUENCE_VAULT_DATABASE_URL": "postgresql+psycopg://u@h/db"}
     with mock_aws():
         store = S3ObjectStore("vault", access_key="test", secret_key="test")

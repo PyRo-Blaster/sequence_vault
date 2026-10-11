@@ -21,7 +21,7 @@ Copy backups off the host into encrypted storage, with access limited to operato
 4. **Restore.** Run `backup.py restore BACKUP_DIR`. Any reported difference means stop: try the previous backup and escalate.
 5. **Check permissions.** Have a project administrator open 项目管理 and confirm members and roles. The fingerprint already compares grants, but people should confirm that the right people can work.
 6. **Search spot check.** Search a few known records and compare them against the fingerprint counts in `manifest.json`.
-7. **Restart.** Start the workers, then the API. Uploads left in progress after the backup point must be re-uploaded. Tell their owners: the audit log shows the last accepted upload per project.
+7. **Restart.** Start the API, then the workers (with Compose, `up -d` does this: workers wait for a healthy API). Uploads left in progress after the backup point must be re-uploaded. Tell their owners: the audit log shows the last accepted upload per project.
 8. **Record the exercise.** Note the timings (detection, restore, verification), the data-loss window and any follow-ups.
 
 ## After a rollback

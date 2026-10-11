@@ -30,7 +30,7 @@ Topology and image requirements: [infrastructure/deployment](../../infrastructur
 4. **Confirm the version.** `docker compose images` lists the running tags.
 5. **Smoke test.** Run the steps in "First installation", step 8.
 
-**Rollback.** Set `SEQUENCE_VAULT_VERSION` back to the previous SHA, then `pull` and `up -d`. Down-migrations exist, but prefer leaving an additive schema in place. If data must be rolled back, restore the pre-release backup (see [backup and restore](backup-and-restore.md)), after exporting records created since the release.
+**Rollback.** Set `SEQUENCE_VAULT_VERSION` back to the previous SHA, then `pull` and `up -d`. If the release had migrated the database, the older API logs that the database is newer than it and runs against it without migrating; migrations are additive, so this is safe. Down-migrations exist, but prefer leaving an additive schema in place. If data must be rolled back, restore the pre-release backup (see [backup and restore](backup-and-restore.md)), after exporting records created since the release.
 
 **Policy, parser, prompt or model changes.** These apply to new runs only and never rewrite published records. Roll back by reverting the configuration and reprocessing affected open tasks.
 

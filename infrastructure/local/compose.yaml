@@ -11,7 +11,8 @@
 # The API applies migrations and creates the bucket when it starts.
 #
 # PostgreSQL and MinIO live on internal networks only; use `docker compose exec` to reach them.
-# Image tags are pinned; pin digests (image@sha256:...) when promoting to a shared environment.
+# Third-party image tags are pinned. The app images follow SEQUENCE_VAULT_VERSION, `main` by
+# default: pin a commit SHA, and digests (image@sha256:...), on a shared environment.
 name: sequence-vault
 
 x-backend: &backend
@@ -84,7 +85,8 @@ services:
     environment:
       <<: *backend-env
       # Replace the one-shot jobs: migrations run under a lock, so replicas may all start.
-      SEQUENCE_VAULT_MIGRATE_ON_START: "true"
+      # An older image on a database a newer one migrated logs a warning and runs (rollback).
+      SEQUENCE_VAULT_MIGRATE_ON_START: ${SEQUENCE_VAULT_MIGRATE_ON_START:-true}
       SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET: "true"
     depends_on:
       postgres: {condition: service_healthy}

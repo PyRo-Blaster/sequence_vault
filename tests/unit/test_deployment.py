@@ -66,7 +66,10 @@ def test_servers_pull_images_and_the_api_replaces_the_one_shot_jobs() -> None:
     assert "build:" not in text
     found = services(text)
     assert "migrate" not in found and "minio-bucket" not in found
-    assert 'SEQUENCE_VAULT_MIGRATE_ON_START: "true"' in found["api"]
+    # On by default, but switchable from the env file.
+    assert (
+        "SEQUENCE_VAULT_MIGRATE_ON_START: ${SEQUENCE_VAULT_MIGRATE_ON_START:-true}" in found["api"]
+    )
     assert 'SEQUENCE_VAULT_OBJECT_STORAGE_CREATE_BUCKET: "true"' in found["api"]
     assert "api: {condition: service_healthy}" in found["worker"]
     # Every service running an app image can be built from source with the override.
@@ -75,5 +78,8 @@ def test_servers_pull_images_and_the_api_replaces_the_one_shot_jobs() -> None:
     }
     assert app == {"api", "worker", "web"}
     assert text.count("${SEQUENCE_VAULT_IMAGES:-ghcr.io/pyro-blaster/sequence-vault}/") == 2
+    # The override builds each app image once: the worker reuses the api's backend image.
     build = services((COMPOSE.parent / "compose.build.yaml").read_text() + "\nnetworks:")
     assert set(build) == app
+    assert [n for n, body in build.items() if "build:" in body] == ["api", "web"]
+    assert "pull_policy: never" in build["worker"]

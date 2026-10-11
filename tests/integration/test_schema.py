@@ -1,5 +1,7 @@
+import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 from alembic import command
@@ -9,9 +11,11 @@ from alembic.migration import MigrationContext
 from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
-from sequence_vault.adapters.persistence.migrate import migrations_dir, upgrade
+from sequence_vault.adapters.persistence.migrate import DatabaseAhead, migrations_dir, upgrade
 from sequence_vault.adapters.persistence.tables import metadata
-from sequence_vault.settings import with_password
+from sequence_vault.adapters.storage.local import LocalObjectStore
+from sequence_vault.entrypoints.bootstrap import prepare
+from sequence_vault.settings import Settings, with_password
 
 VERSIONS = migrations_dir() / "migrations/versions"
 
@@ -159,3 +163,32 @@ def test_migrations_accept_a_percent_encoded_password(admin_url: str, database_u
         with admin.connect() as connection:
             connection.execute(text(f"DROP ROLE {role}"))
         admin.dispose()
+
+
+def test_an_older_release_starts_against_a_database_a_newer_one_migrated(
+    database_url: str, engine: Engine, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Rollback: the API must not crash-loop on a revision it does not know."""
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE alembic_version SET version_num = '0099'"))
+    with pytest.raises(DatabaseAhead, match="0099"):
+        upgrade(database_url)
+    settings = Settings.from_env(
+        {
+            "SEQUENCE_VAULT_ENV": "development",
+            "SEQUENCE_VAULT_STORAGE": "local",
+            "SEQUENCE_VAULT_SCANNER": "development",
+            "SEQUENCE_VAULT_DATABASE_URL": database_url,
+            "SEQUENCE_VAULT_MIGRATE_ON_START": "true",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        prepare(settings, LocalObjectStore(tmp_path))
+    assert "newer than this release" in caplog.text
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == (
+            "0099"
+        )
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE alembic_version SET version_num = '0005'"))
+    assert upgrade(database_url) == ("0005", "0005")  # nothing to do, nothing logged
